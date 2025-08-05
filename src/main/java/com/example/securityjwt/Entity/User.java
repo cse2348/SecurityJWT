@@ -27,7 +27,6 @@ public class User implements UserDetails {
     private String password;  // 비밀번호 (암호화된 값)
 
     // 사용자 권한 반환 (지금은 권한 없이 빈 리스트)
-
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return Collections.emptyList();  // 권한이 없는 경우 빈 리스트 반환

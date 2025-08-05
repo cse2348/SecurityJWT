@@ -13,7 +13,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
-// 매 요청(Request)마다 JWT 토큰을 검사하고, 인증 정보를 SecurityContextHolder에 저장하는 파일
+// 매 요청(Request)마다 JWT 토큰을 검사하고, 인증 정보를 SecurityContextHolder에 저장시킴
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 

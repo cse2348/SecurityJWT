@@ -6,7 +6,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-//모든 Controller에서 발생하는 예외를 한 곳에서 처리해주는 클래스(전역 예외 처리기)
+// 모든 Controller에서 발생하는 예외를 한 곳에서 처리해주는 클래스(전역 예외 처리기)
 
 @RestControllerAdvice  //전역 예외 처리기임을 선언 (모든 @RestController에 적용됨)
 public class GlobalExceptionHandler {

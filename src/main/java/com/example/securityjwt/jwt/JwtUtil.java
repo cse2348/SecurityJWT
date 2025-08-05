@@ -1,4 +1,4 @@
-package jwt;
+package com.example.securityjwt.jwt;
 
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;

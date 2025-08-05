@@ -1,7 +1,7 @@
-package Service;
+package com.example.securityjwt.Service;
 
-import Entity.User;
-import Repository.UserRepository;
+import com.example.securityjwt.Entity.User;
+import com.example.securityjwt.Repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 

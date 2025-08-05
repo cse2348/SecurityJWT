@@ -1,4 +1,4 @@
-package common;
+package com.example.securityjwt.common;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

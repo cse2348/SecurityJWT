@@ -1,9 +1,9 @@
-package Controller;
+package com.example.securityjwt.Controller;
 
-import Entity.User;
-import Service.AuthService;
-import Service.UserService;
-import common.ApiResponse;
+import com.example.securityjwt.Entity.User;
+import com.example.securityjwt.Service.AuthService;
+import com.example.securityjwt.Service.UserService;
+import com.example.securityjwt.common.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;

@@ -1,8 +1,8 @@
-package Service;
+package com.example.securityjwt.Service;
 
-import Entity.User;
-import Repository.UserRepository;
-import jwt.JwtUtil;
+import com.example.securityjwt.Entity.User;
+import com.example.securityjwt.Repository.UserRepository;
+import com.example.securityjwt.jwt.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;

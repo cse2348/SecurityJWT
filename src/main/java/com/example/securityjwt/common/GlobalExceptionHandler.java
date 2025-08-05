@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice  //전역 예외 처리기임을 선언 (모든 @RestController에 적용됨)
 public class GlobalExceptionHandler {
 
-    // 모든 Exception을 처리하는 (가장 범위가 넓은 예외 처리기)
+    // 모든 Exception을 처리하는(가장 범위가 넓은 예외 처리기)
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<String>> handleException(Exception e) {
         // 500 Internal Server Error 상태 코드와 함께 실패 응답 반환

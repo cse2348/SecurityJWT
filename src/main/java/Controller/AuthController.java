@@ -5,7 +5,7 @@ import Service.AuthService;
 import Service.UserService;
 import common.ApiResponse;
 import lombok.RequiredArgsConstructor;
-import org.apache.tomcat.util.net.openssl.ciphers.Authentication;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -39,7 +39,7 @@ public class AuthController {
     @GetMapping("/me")
     public ApiResponse<User> getUserInfo(Authentication authentication) {
         String username = authentication.getName();
-        User user = userService.getUserInfo(username);
+        User user = userService.findByUsername(username);
         return new ApiResponse<>(true, "유저 정보 조회 성공", user);
     }
 }

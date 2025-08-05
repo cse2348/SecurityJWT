@@ -4,6 +4,8 @@ import Entity.User;
 import Repository.UserRepository;
 import jwt.JwtUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 @Service
 @RequiredArgsConstructor

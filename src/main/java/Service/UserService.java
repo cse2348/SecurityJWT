@@ -3,6 +3,7 @@ package Service;
 import Entity.User;
 import Repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
 @Service
 @RequiredArgsConstructor

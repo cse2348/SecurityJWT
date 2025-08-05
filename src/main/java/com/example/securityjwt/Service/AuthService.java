@@ -43,7 +43,7 @@ public class AuthService {
             throw new IllegalArgumentException("비밀번호가 일치하지 않습니다.");
         }
 
-        // 인증 성공 시 JWT Access Token 발급
+        // 인증 성공시 JWT Access Token 발급
         return jwtUtil.generateAccessToken(username);
     }
 
@@ -55,7 +55,7 @@ public class AuthService {
             throw new IllegalArgumentException("유효하지 않은 리프레시 토큰입니다.");
         }
 
-        // 토큰에서 사용자명 추출
+        //토큰에서 사용자명 추출
         String username = jwtUtil.getUsernameFromToken(refreshToken);
 
         // 새로운 Access Token 발급 후 반환

@@ -35,7 +35,8 @@ jobs:
 
       - name: Build and Push Docker Image
         run: |
-          IMAGE_URI=228041307119.dkr.ecr.ap-northeast-2.amazonaws.com/springjwt-repo:latest
+          IMAGE_URI=228041307119.dkr.ecr.ap-northeast-2.amazonaws.com/springjwt-repo:${{ github.sha }}
+          echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
           docker build -t $IMAGE_URI .
           docker push $IMAGE_URI
 
@@ -48,18 +49,17 @@ jobs:
           script: |
             mkdir -p ~/app
             cd ~/app
-            
-            # .env 파일 생성
-            echo "SPRING_DATASOURCE_URL=${{ secrets.SPRING_DATASOURCE_URL }}" > .env
-            echo "SPRING_DATASOURCE_USERNAME=${{ secrets.SPRING_DATASOURCE_USERNAME }}" >> .env
-            echo "SPRING_DATASOURCE_PASSWORD=${{ secrets.SPRING_DATASOURCE_PASSWORD }}" >> .env
 
+            cat <<EOF > .env
+            SPRING_DATASOURCE_URL=${{ secrets.SPRING_DATASOURCE_URL }}
+            SPRING_DATASOURCE_USERNAME=${{ secrets.SPRING_DATASOURCE_USERNAME }}
+            SPRING_DATASOURCE_PASSWORD=${{ secrets.SPRING_DATASOURCE_PASSWORD }}
+            EOF
+            
             docker stop app || true && docker rm app || true
-            docker pull 228041307119.dkr.ecr.ap-northeast-2.amazonaws.com/springjwt-repo:latest
+            docker pull ${{ env.IMAGE_URI }}
             docker run -d \
-              --name app \
-              --env-file ~/app/.env \
-              -p 8080:8080 \
-              228041307119.dkr.ecr.ap-northeast-2.amazonaws.com/springjwt-repo:latest
-      
-          
+            --name app \
+            --env-file ~/app/.env \
+            -p 8080:8080 \
+            ${{ env.IMAGE_URI }}

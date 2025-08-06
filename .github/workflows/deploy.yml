@@ -46,6 +46,10 @@ jobs:
           username: ec2-user
           key: ${{ secrets.EC2_KEY }}
           script: |
+            mkdir -p ~/app  # app 디렉토리 생성
+            cd ~/app         # app 디렉토리로 이동
+
+            # .env 파일 생성
             echo "SPRING_DATASOURCE_URL=${{ secrets.SPRING_DATASOURCE_URL }}" > .env
             echo "SPRING_DATASOURCE_USERNAME=${{ secrets.SPRING_DATASOURCE_USERNAME }}" >> .env
             echo "SPRING_DATASOURCE_PASSWORD=${{ secrets.SPRING_DATASOURCE_PASSWORD }}" >> .env
@@ -55,6 +59,7 @@ jobs:
             docker pull 228041307119.dkr.ecr.ap-northeast-2.amazonaws.com/springjwt-repo:latest
             docker run -d \
               --name app \
-              --env-file .env \
+              --env-file ~/app/.env \
               -p 8080:8080 \
               228041307119.dkr.ecr.ap-northeast-2.amazonaws.com/springjwt-repo:latest
+          

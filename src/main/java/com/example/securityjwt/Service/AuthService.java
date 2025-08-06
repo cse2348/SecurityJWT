@@ -16,8 +16,8 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;  // 비밀번호 암호화/검증에 사용 (BCrypt)
     private final JwtUtil jwtUtil;  // JWT 토큰 생성/검증 유틸 클래스
 
-     // 회원가입 메서드
-     // username 중복 체크 -> 비밀번호를 암호화한 후 새로운 User를 DB에 저장
+    // 회원가입 메서드
+    // username 중복 체크 -> 비밀번호를 암호화한 후 새로운 User를 DB에 저장
     public void signup(String username, String password) {
         // 이미 존재하는 사용자명인지 확인
         if (userRepository.findByUsername(username).isPresent()) {
@@ -31,8 +31,8 @@ public class AuthService {
         userRepository.save(user);
     }
 
-     // 로그인 메서드
-     // username으로 User 정보를 조회하고 비밀번호 일치 여부를 확인 - > 인증 성공 시 JWT Access Token을 발급하여 반환
+    // 로그인 메서드
+    // username으로 User 정보를 조회하고 비밀번호 일치 여부를 확인 - > 인증 성공 시 JWT Access Token을 발급하여 반환
     public String login(String username, String password) {
         // 사용자명으로 User 조회 (없으면 예외 발생)
         User user = userRepository.findByUsername(username)
@@ -47,18 +47,24 @@ public class AuthService {
         return jwtUtil.generateAccessToken(username);
     }
 
-     // 리프레시 토큰을 이용한 Access Token 재발급 메서드
-     // 리프레시 토큰 유효성 검증 만약 유효한 경우 username을 추출하여 새로운 Access Token 발급
+    // 리프레시 토큰을 이용한 Access Token 재발급 메서드
+    // 리프레시 토큰 유효성 검증 만약 유효한 경우 username을 추출하여 새로운 Access Token 발급
     public String refresh(String refreshToken) {
         // 리프레시 토큰 유효성 검증
         if (!jwtUtil.validateToken(refreshToken)) {
             throw new IllegalArgumentException("유효하지 않은 리프레시 토큰입니다.");
         }
 
-        //토큰에서 사용자명 추출
+        // 토큰에서 사용자명 추출
         String username = jwtUtil.getUsernameFromToken(refreshToken);
 
         // 새로운 Access Token 발급 후 반환
         return jwtUtil.generateAccessToken(username);
+    }
+
+    // 리프레시 토큰 발급 메서드
+    // username을 받아서 새로운 Refresh Token을 생성하여 반환
+    public String generateRefreshToken(String username) {
+        return jwtUtil.generateRefreshToken(username);
     }
 }

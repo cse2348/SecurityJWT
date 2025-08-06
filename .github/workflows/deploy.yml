@@ -7,17 +7,19 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     env:
-      AWS_REGION: ap-northeast-2
+      AWS_REGION: ${{ secrets.AWS_REGION }}
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-      IMAGE_NAME: springjwt-repo # ECR 레포지토리 이름
+      REPOSITORY_NAME: ${{ secrets.ECR_REPOSITORY }}
+      IMAGE_TAG: ${{ github.sha }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
@@ -29,58 +31,45 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew clean build -x test
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v1
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build and push Docker image to ECR
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+      - name: Build and Push Docker Image to ECR
         run: |
-          IMAGE_TAG=${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          docker build -t $IMAGE_TAG .
-          docker push $IMAGE_TAG
+          IMAGE_URI=${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.REPOSITORY_NAME }}:${{ env.IMAGE_TAG }}
+          docker build -t $IMAGE_URI .
+          docker push $IMAGE_URI
 
-      - name: Deploy to EC2 instance
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ec2-user
           key: ${{ secrets.EC2_KEY }}
           script: |
-            # 1. 디렉토리 생성 
-            mkdir -p ~/app
-            
-            # EC2 인스턴스에서 ECR 로그인
+            IMAGE_URI=${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.REPOSITORY_NAME }}:${{ env.IMAGE_TAG }}
+
+            # ECR Login (Token Expiry 대응)
             aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
 
-            # 2. .env 파일 생성 
-            cat <<-EOF > ~/app/.env
-            SPRING_DATASOURCE_URL=${{ secrets.SPRING_DATASOURCE_URL }}
-            SPRING_DATASOURCE_USERNAME=${{ secrets.SPRING_DATASOURCE_USERNAME }}
-            SPRING_DATASOURCE_PASSWORD=${{ secrets.SPRING_DATASOURCE_PASSWORD }}
-            EOF
-            
-            # 3. 이미지 URI 정의 (동적 방식 유지)
-            IMAGE_URI="${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.IMAGE_NAME }}:latest"
+            # .env 파일 작성
+            echo "SPRING_DATASOURCE_URL=${{ secrets.SPRING_DATASOURCE_URL }}" > .env
+            echo "SPRING_DATASOURCE_USERNAME=${{ secrets.SPRING_DATASOURCE_USERNAME }}" >> .env
+            echo "SPRING_DATASOURCE_PASSWORD=${{ secrets.SPRING_DATASOURCE_PASSWORD }}" >> .env
 
             # 기존 컨테이너 중지 및 삭제
-            docker stop app || true
-            docker rm app || true
-            
-            # 최신 이미지 pull
+            docker ps -q --filter "name=app" | grep -q . && docker stop app && docker rm app || echo "No existing container"
+
+            # 최신 이미지 Pull & Run
             docker pull $IMAGE_URI
-            
-            # 새 컨테이너 실행
             docker run -d \
+              --restart=always \
               --name app \
-              --env-file ~/app/.env \
+              --env-file .env \
               -p 8080:8080 \
               $IMAGE_URI
+
+            # .env 파일 삭제
+            rm .env

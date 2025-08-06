@@ -2,7 +2,7 @@ name: Deploy to EC2
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "main" ]
 
 jobs:
   deploy:
@@ -35,7 +35,7 @@ jobs:
 
       - name: Build and Push Docker Image
         run: |
-          IMAGE_URI=228041307119.dkr.ecr.ap-northeast-2.amazonaws.com/winner-repo:latest
+          IMAGE_URI=228041307119.dkr.ecr.ap-northeast-2.amazonaws.com/springjwt-repo:latest
           docker build -t $IMAGE_URI .
           docker push $IMAGE_URI
 
@@ -52,9 +52,9 @@ jobs:
             echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> .env
 
             docker stop app || true && docker rm app || true
-            docker pull 228041307119.dkr.ecr.ap-northeast-2.amazonaws.com/winner-repo:latest
+            docker pull 228041307119.dkr.ecr.ap-northeast-2.amazonaws.com/springjwt-repo:latest
             docker run -d \
               --name app \
               --env-file .env \
               -p 8080:8080 \
-              228041307119.dkr.ecr.ap-northeast-2.amazonaws.com/winner-repo:latest
+              228041307119.dkr.ecr.ap-northeast-2.amazonaws.com/springjwt-repo:latest

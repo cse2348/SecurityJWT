@@ -9,7 +9,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
-import java.util.HashMap;
 
 @RestController
 @RequiredArgsConstructor
@@ -32,14 +31,8 @@ public class AuthController {
         String username = request.get("username");
         String password = request.get("password");
 
-        // AccessToken, RefreshToken 발급
-        String accessToken = authService.login(username, password);
-        String refreshToken = authService.generateRefreshToken(username);
-
-        // AccessToken과 RefreshToken을 응답 데이터로 반환
-        Map<String, String> tokens = new HashMap<>();
-        tokens.put("accessToken", accessToken);
-        tokens.put("refreshToken", refreshToken);
+        // AccessToken, RefreshToken 발급 및 DB 저장은 AuthService에서 처리
+        Map<String, String> tokens = authService.login(username, password);
 
         return new ApiResponse<>(true, "로그인 성공", tokens);
     }

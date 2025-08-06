@@ -1,5 +1,6 @@
 package com.example.securityjwt.Entity;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -25,6 +26,9 @@ public class User implements UserDetails {
 
     private String username;  // 사용자명 (로그인 ID)
     private String password;  // 비밀번호 (암호화된 값)
+
+    @Column(length = 500)
+    private String refreshToken;  // 리프레시 토큰 저장 (로그인 시 저장, 재발급 시 검증)
 
     // 사용자 권한 반환 (지금은 권한 없이 빈 리스트)
     @Override

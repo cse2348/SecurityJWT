@@ -53,7 +53,6 @@ jobs:
             echo "SPRING_DATASOURCE_URL=${{ secrets.SPRING_DATASOURCE_URL }}" > .env
             echo "SPRING_DATASOURCE_USERNAME=${{ secrets.SPRING_DATASOURCE_USERNAME }}" >> .env
             echo "SPRING_DATASOURCE_PASSWORD=${{ secrets.SPRING_DATASOURCE_PASSWORD }}" >> .env
-            echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> .env
 
             docker stop app || true && docker rm app || true
             docker pull 228041307119.dkr.ecr.ap-northeast-2.amazonaws.com/springjwt-repo:latest
@@ -62,4 +61,5 @@ jobs:
               --env-file ~/app/.env \
               -p 8080:8080 \
               228041307119.dkr.ecr.ap-northeast-2.amazonaws.com/springjwt-repo:latest
+      
           

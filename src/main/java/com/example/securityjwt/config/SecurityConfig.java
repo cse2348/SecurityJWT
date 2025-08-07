@@ -67,6 +67,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()  // Preflight 요청 허용 (CORS Preflight)
                         .requestMatchers("/auth/**").permitAll()  // 로그인, 회원가입 API는 인증 없이 접근 가능
+                        .requestMatchers("/health").permitAll()
                         .anyRequest().authenticated()  // 나머지 모든 요청은 인증이 필요함
                 )
                 // 로그아웃 처리

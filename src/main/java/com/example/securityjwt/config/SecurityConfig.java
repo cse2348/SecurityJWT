@@ -53,7 +53,7 @@ public class SecurityConfig {
                 // CORS 설정 (Cross-Origin 요청 허용) -> 모든 Origin 허용 (배포 시에는 특정 도메인만 허용하는 것이 보안에 좋음)
                 .cors(cors -> cors.configurationSource(request -> {
                     CorsConfiguration config = new CorsConfiguration();
-                    config.setAllowedOriginPatterns(List.of("*"));  // 모든 도메인에서의 접근 허용
+                    config.setAllowedOriginPatterns(List.of("https://winnerteam.store"));
                     config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));  // 허용할 HTTP 메서드
                     config.setAllowedHeaders(List.of("*"));  // 모든 헤더 허용
                     config.setAllowCredentials(true);  // 쿠키 및 인증정보 허용 여부

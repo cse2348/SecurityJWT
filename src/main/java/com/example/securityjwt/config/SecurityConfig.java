@@ -25,9 +25,9 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtUtil jwtUtil;  // JWT를 발급하고 검증하는 유틸 클래스
-    private final UserDetailsService userDetailsService;  // 사용자 정보를 DB에서 가져오는 서비스
+    private final UserDetailsService userDetailsService;  //사용자 정보를 DB에서 가져오는 서비스
 
-    // JwtAuthenticationFilter를 Bean으로 등록 ->직접 new를 통해 의존성(JwtUtil, UserDetailsService)을 주입해 반환
+    // JwtAuthenticationFilter를 Bean으로 등록 -> 직접 new를 통해 의존성(JwtUtil, UserDetailsService)을 주입해 반환
     @Bean
     public JwtAuthenticationFilter jwtAuthenticationFilter() {
         return new JwtAuthenticationFilter(jwtUtil, userDetailsService);

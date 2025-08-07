@@ -11,7 +11,7 @@
 | 항목        | 기술                   |
 | --------- | -------------------- |
 | Language  | Java 17              |
-| Framework | Spring Boot 3.2      |
+| Framework | Spring Boot 3      |
 | Database  | MySQL                |
 | Security  | Spring Security, JWT |
 | Infra     | Docker, AWS EC2      |
@@ -27,16 +27,17 @@
 | `/user/me`      | GET    | JWT 인증된 사용자 정보 조회 (보호 API)            |
 
 ## 배포 주소
-
+https://winner.store
 
 ## API 설명
 
 | API             | Request Body                                     | Response                                                | 설명                             |
 | --------------- | ------------------------------------------------ | ------------------------------------------------------- | ------------------------------ |
-| `/auth/signup`  | `{ "username": "string", "password": "string" }` | `201 Created`                                           | 신규 사용자 회원가입                    |
-| `/auth/login`   | `{ "username": "string", "password": "string" }` | `{ "accessToken": "string", "refreshToken": "string" }` | 로그인 성공 시 JWT 발급                |
-| `/auth/refresh` | `{ "refreshToken": "string" }`                   | `{ "accessToken": "string" }`                           | RefreshToken으로 AccessToken 재발급 |
-| `/user/me`      | Header: `Authorization: Bearer {accessToken}`    | `{ "id": 1, "username": "string", "role": "USER" }`     | 인증된 사용자 정보 반환                  |
+| `/auth/signup`  | `{ "username": "string", "password": "string" }` | `{"success": false,"message": "이미 존재하는 사용자입니다. or 회원가입성공","data": null}` | 신규 사용자 회원가입                    |
+| `/auth/login`   | `{ "username": "string", "password": "string" }` | `{"success": true,"message": "로그인 성공","data": {"accessToken": "","refreshToken": ""}}`| 로그인 성공 시 JWT 발급                |
+| `/auth/refresh` | `{"refreshToken": "{{refreshToken}}"}` | `{"success": true,"message": "토큰 재발급 성공","data": "토큰값"}` | RefreshToken으로 AccessToken 재발급 |
+| `/user/me`      | Header: `Authorization: Bearer {accessToken}`    |  `{"success": true,"message": "유저 정보 조회 결과","data": {"id": 1,"username": "testuser","password": "비번","refreshToken" : "토큰값","enabled": true,"roles": [],"accountNonExpired": true,"accountNonLocked": true,"credentialsNonExpired": true}}`     | 인증된 사용자 정보 반환                  |
 
 
 ## 기타(참고url,기술오류 등등)
+postman : https://www.postman.com/backend-team-b/spring-security-jwt/collection/l1adr0w/jwt?action=share&source=copy-link&creator=46095284

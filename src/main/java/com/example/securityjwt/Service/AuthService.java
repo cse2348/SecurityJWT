@@ -17,9 +17,9 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor  // 필수 필드(final) 생성자 자동 생성 (DI 주입용)
 public class AuthService {
 
-    private final UserRepository userRepository;  // 사용자 정보를 DB에서 조회하는 Repository
-    private final PasswordEncoder passwordEncoder;  // 비밀번호 암호화/검증에 사용 (BCrypt)
-    private final JwtUtil jwtUtil;  // JWT 토큰 생성/검증 유틸 클래스
+    private final UserRepository userRepository;   // 사용자 정보를 DB에서 조회하는 Repository
+    private final PasswordEncoder passwordEncoder; // 비밀번호 암호화/검증에 사용 (BCrypt)
+    private final JwtUtil jwtUtil;                 // JWT 토큰 생성/검증 유틸 클래스
 
     // 회원가입 메서드
     // username 중복 체크 -> 비밀번호를 암호화한 후 새로운 User를 DB에 저장
@@ -83,25 +83,40 @@ public class AuthService {
     // 리프레시 토큰을 이용한 Access Token 재발급 메서드
     // DB에 저장된 리프레시 토큰과 비교하여 일치하는 경우에만 Access Token 발급
     @Transactional
-    public AuthResponse refresh(String refreshToken) {
-        // 리프레시 토큰 유효성 검증 (서명 & 유효기간)
-        if (!jwtUtil.validateToken(refreshToken)) {
+    public AuthResponse refresh(String refreshTokenRaw) {
+        // 0) 방어코드: null/공백/길이 체크 + "Bearer " 접두사 제거
+        String refreshToken = normalizeBearer(refreshTokenRaw);
+        if (refreshToken == null || refreshToken.isBlank()) {
             throw new IllegalArgumentException("유효하지 않은 리프레시 토큰입니다.");
         }
 
-        // 토큰에서 사용자명 추출
-        String username = jwtUtil.getUsernameFromToken(refreshToken);
+        // 1) 리프레시 토큰 유효성 검증 (서명 & 유효기간)
+        //    JwtUtil.validateToken은 모든 예외(만료/서명/형식)를 false로 반환
+        if (!jwtUtil.validateToken(refreshToken)) {
+            // NOTE: 만료/서명/형식 불일치 등 모든 케이스 동일 메시지로 응답
+            throw new IllegalArgumentException("유효하지 않은 리프레시 토큰입니다.");
+        }
 
-        // DB에서 사용자 조회 및 저장된 리프레시 토큰과 비교
+        // 2) 토큰에서 사용자명 추출 (파싱 실패 시도 동일 메시지)
+        String username;
+        try {
+            username = jwtUtil.getUsernameFromToken(refreshToken);
+        } catch (Exception e) {
+            // 토큰 파싱 실패 (형식/서명/만료 등) → 동일 메시지
+            throw new IllegalArgumentException("유효하지 않은 리프레시 토큰입니다.");
+        }
+
+        // 3) DB에서 사용자 조회 및 저장된 리프레시 토큰과 비교
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("사용자를 찾을 수 없습니다."));
 
-        // 저장된 리프레시 토큰과 요청한 리프레시 토큰이 일치하는지 검증
-        if (!refreshToken.equals(user.getRefreshToken())) {
+        String storedRefresh = user.getRefreshToken();
+        // 저장된 토큰과 정확히 일치해야 함 (회전 사용 시 여기서 로직 변경)
+        if (storedRefresh == null || !refreshToken.equals(storedRefresh)) {
             throw new IllegalArgumentException("유효하지 않은 리프레시 토큰입니다.");
         }
 
-        // 새로운 Access Token 발급
+        // 4) 새로운 Access Token 발급
         String newAccessToken = jwtUtil.generateAccessToken(username);
 
         // (선택) Refresh Token Rotation을 원한다면 여기서 새 Refresh Token 발급 및 교체 저장
@@ -120,5 +135,20 @@ public class AuthService {
         return AuthResponse.builder()
                 .tokens(tokens)
                 .build();
+    }
+
+    // --- 내부 유틸 ---
+
+    /**
+     * "Bearer xxx" 형태면 접두사를 제거하고, 양끝 공백을 정리한다.
+     * null 안전 처리 포함.
+     */
+    private String normalizeBearer(String token) {
+        if (token == null) return null;
+        String t = token.trim();
+        if (t.regionMatches(true, 0, "Bearer ", 0, 7)) { // 대소문자 무시하여 Bearer 인식
+            t = t.substring(7);
+        }
+        return t.trim();
     }
 }

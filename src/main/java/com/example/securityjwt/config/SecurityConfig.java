@@ -26,33 +26,35 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final JwtUtil jwtUtil;  // JWT를 발급하고 검증하는 유틸 클래스
-    private final UserDetailsService userDetailsService;  // 사용자 정보를 DB에서 가져오는 서비스
+    private final JwtUtil jwtUtil;
+    private final UserDetailsService userDetailsService;
 
-    // JwtAuthenticationFilter를 Bean으로 등록 -> 직접 new를 통해 의존성(JwtUtil, UserDetailsService)을 주입해 반환
+    // ⚠️ JwtAuthenticationFilter에는 @Component 달지 말고, 여기 @Bean만 사용
     @Bean
     public JwtAuthenticationFilter jwtAuthenticationFilter() {
         return new JwtAuthenticationFilter(jwtUtil, userDetailsService);
     }
 
-    // 비밀번호를 암호화할 때 사용할 PasswordEncoder를 Bean으로 등록 -> BCrypt 알고리즘을 사용하여 안전하게 비밀번호를 암호화/검증
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
-    // CORS 설정을 Bean으로 분리 (가독성과 재사용성 ↑)
+    // CORS (브라우저용; Postman엔 영향 없음)
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        // 허용할 Origin — 개발 단계에서는 "*" 가능, 배포 시에는 특정 도메인만
-        config.setAllowedOriginPatterns(List.of("https://winnerteam.store"));
-        // 허용할 HTTP 메서드
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        // 허용할 헤더
-        config.setAllowedHeaders(List.of("*"));
-        // 쿠키 및 인증정보 허용 여부
+        // 배포/테스트 도메인 허용 (필요시 추가)
+        config.setAllowedOriginPatterns(List.of(
+                "https://winnerteam.store",
+                "https://winner.site"
+                // ,"http://localhost:3000" // 로컬에서 테스트하면 주석 해제
+        ));
+        config.setAllowedMethods(List.of("GET","POST","PUT","DELETE","OPTIONS"));
+        config.setAllowedHeaders(List.of("Authorization","Content-Type","Accept","Origin","X-Requested-With","Cache-Control"));
         config.setAllowCredentials(true);
+        // 토큰을 헤더로 받을 때 브라우저가 읽을 수 있게 하고 싶다면:
+        config.setExposedHeaders(List.of("Authorization"));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
@@ -62,38 +64,40 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                // CSRF(Cross-Site Request Forgery) 보안 비활성화 -> JWT를 사용하기 때문에 CSRF를 사용 X
                 .csrf(csrf -> csrf.disable())
-                // 기본 제공하는 HTTP Basic 인증 비활성화
-                .httpBasic(httpBasic -> httpBasic.disable())
-                // Form 기반 로그인 비활성화 (API 방식이므로 필요 없음)
-                .formLogin(form -> form.disable())
-
-                // CORS 설정 (Cross-Origin 요청 허용)
+                .httpBasic(hb -> hb.disable())
+                .formLogin(fl -> fl.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-                // 세션을 사용하지 않는 Stateless 방식으로 설정 - JWT를 사용하기 때문에 세션X
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-
-                // URL별 접근 권한 설정
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()  // Preflight 요청 허용 (CORS Preflight)
-                        .requestMatchers("/auth/**").permitAll()  // 로그인, 회원가입 API는 인증 없이 접근 가능
-                        .requestMatchers("/health").permitAll()
-                        .anyRequest().authenticated()  // 나머지 모든 요청은 인증이 필요함
+                        // Preflight는 항상 허용
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        // 헬스체크는 반드시 허용
+                        .requestMatchers("/health", "/actuator/health").permitAll()
+                        // 공개 인증 API
+                        .requestMatchers("/auth/**").permitAll()
+                        // 나머지는 인증 필요
+                        .anyRequest().authenticated()
                 )
 
-                // 로그아웃 처리
-                .logout(logout -> logout
-                        .logoutSuccessHandler((request, response, authentication) -> {
-                            response.setStatus(HttpServletResponse.SC_OK);  // 로그아웃 성공 시 200 OK 반환
+                // 401/403을 명확히 JSON으로 주기 (디버깅 쉬움)
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((req, res, e) -> {
+                            res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                            res.setContentType("application/json;charset=UTF-8");
+                            res.getWriter().write("{\"success\":false,\"message\":\"UNAUTHORIZED\",\"data\":null}");
+                        })
+                        .accessDeniedHandler((req, res, e) -> {
+                            res.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            res.setContentType("application/json;charset=UTF-8");
+                            res.getWriter().write("{\"success\":false,\"message\":\"FORBIDDEN\",\"data\":null}");
                         })
                 )
 
-                // UsernamePasswordAuthenticationFilter 앞에 JWT 필터를 추가 -> 요청이 들어올 때마다 JWT 필터가 먼저 실행되어 토큰을 검증
+                // JWT 필터 순서: UsernamePasswordAuthenticationFilter 앞
                 .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
 
-        // SecurityFilterChain 빌드 후 반환
         return http.build();
     }
 }

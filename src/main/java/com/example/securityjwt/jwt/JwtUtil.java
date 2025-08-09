@@ -1,5 +1,6 @@
 package com.example.securityjwt.jwt;
 
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
@@ -17,10 +18,10 @@ public class JwtUtil {
     @Value("${jwt.secret}")
     private String secretKey;  // 32글자 이상 비밀키 설정
 
-    private SecretKey key;  // 서명에 사용할 SecretKey 객체
+    private SecretKey key;     // 서명에 사용할 SecretKey 객체
 
-    private final long accessTokenValidity = 60 * 60 * 1000L; // 1시간
-    private final long refreshTokenValidity = 14 * 24 * 60 * 60 * 1000L; // 14일
+    private final long accessTokenValidity  = 60 * 60 * 1000L;            // 1시간
+    private final long refreshTokenValidity = 14 * 24 * 60 * 60 * 1000L;   // 14일
 
     @PostConstruct
     public void init() {
@@ -32,50 +33,117 @@ public class JwtUtil {
         this.key = Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8));
     }
 
-    //JWT를 발급하는 메서드
-    public String generateToken(String username, long validity) {
-        //@return값 :  JWT 문자열
+    // ========================
+    // 토큰 생성부
+    // ========================
+
+    /**
+     * (권장) 토큰 타입을 명시하여 생성하는 내부 메서드
+     * tokenType: "access" | "refresh"
+     */
+    private String generateToken(String username, long validity, String tokenType) {
         return Jwts.builder()
                 .setSubject(username)  // payload에 subject로 username 저장
-                .setIssuedAt(new Date())  // 토큰이 발급된 시각 (issuedAt)
+                .claim("tokenType", tokenType) // access/refresh 구분 클레임
+                .setIssuedAt(new Date())      // 토큰이 발급된 시각 (issuedAt)
                 .setExpiration(new Date(System.currentTimeMillis() + validity))  // 만료 시각 설정 (현재 시간 + 유효기간)
-                // validity : 토큰의 유효기간 (AccessToken / RefreshToken을 구분해서 사용)
                 .signWith(key, SignatureAlgorithm.HS256)  // 서명 알고리즘 및 SecretKey로 서명
-                .compact();  // JWT 문자열로 직렬화해서 반환 (최종 완성된 토큰 문자열)
+                .compact();                  // JWT 문자열로 직렬화해서 반환 (최종 완성된 토큰 문자열)
     }
 
-    //Access Token을 발급하는 메서드
+    /**
+     * (하위호환) 토큰 타입 없이 생성 — 기존 코드 호환용.
+     * 가능한 한 generateAccessToken / generateRefreshToken을 사용하세요.
+     */
+    @Deprecated
+    public String generateToken(String username, long validity) {
+        return Jwts.builder()
+                .setSubject(username)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + validity))
+                .signWith(key, SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    // Access Token을 발급하는 메서드
     public String generateAccessToken(String username) {
-        //@return값: Access Token 문자열
-        return generateToken(username, accessTokenValidity);
+        // @return값: Access Token 문자열
+        return generateToken(username, accessTokenValidity, "access");
     }
 
-    //Refresh Token을 발급하는 메서드
+    // Refresh Token을 발급하는 메서드
     public String generateRefreshToken(String username) {
-        // @return값 :  Refresh Token 문자열
-        return generateToken(username, refreshTokenValidity);
+        // @return값 : Refresh Token 문자열
+        return generateToken(username, refreshTokenValidity, "refresh");
+    }
+
+    // ========================
+    // 파싱/검증 유틸
+    // ========================
+
+    // 공통: Claims 파싱 (서명/만료 검증 포함). 예외는 호출부에서 처리하거나 validateToken으로 선검증 권장.
+    private Claims parseClaims(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(key)  // 토큰을 서명할 때 사용했던 SecretKey로 검증
+                .build()
+                .parseClaimsJws(token) // 토큰을 파싱해서 payload(body)를 꺼냄 (서명이 올바르지 않으면 여기서 예외 발생)
+                .getBody();            // payload(body)에 접근
     }
 
     // JWT에서 사용자명을 추출하는 메서드
     public String getUsernameFromToken(String token) {
-        return Jwts.parserBuilder()
-                .setSigningKey(key)  // 토큰을 서명할 때 사용했던 SecretKey로 검증
-                .build()
-                .parseClaimsJws(token)  // 토큰을 파싱해서 payload(body)를 꺼냄 (서명이 올바르지 않으면 여기서 예외 발생)
-                .getBody()  // payload(body)에 접근
-                .getSubject();  // subject(username)를 꺼냄
+        return parseClaims(token).getSubject();  // subject(username)를 꺼냄
     }
 
-    // 토큰이 유효한지 검증하는 메서드
+    // 토큰 타입이 refresh인지 검사 (토큰 타입 클레임 기반)
+    public boolean isRefreshToken(String token) {
+        try {
+            Claims c = parseClaims(token);
+            String type = c.get("tokenType", String.class);
+            return "refresh".equals(type);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    // 토큰 타입이 access인지 검사
+    public boolean isAccessToken(String token) {
+        try {
+            Claims c = parseClaims(token);
+            String type = c.get("tokenType", String.class);
+            return "access".equals(type);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    // 토큰 만료시각 반환 (필요 시 사용)
+    public Date getExpiration(String token) {
+        return parseClaims(token).getExpiration();
+    }
+
+    // 토큰이 유효한지 검증하는 메서드 (서명/만료/형식)
     public boolean validateToken(String token) {
         try {
-            Jwts.parserBuilder()
-                    .setSigningKey(key)  // 토큰을 서명할 때 사용했던 SecretKey로 검증
-                    .build()
-                    .parseClaimsJws(token);  // 토큰 파싱 (서명 검증 및 만료시간 체크를 자동으로)
+            // 토큰 파싱 (서명 검증 및 만료시간 체크 자동 수행)
+            parseClaims(token);
             return true;  // 에러가 발생하지 않으면 유효한 토큰
+        } catch (io.jsonwebtoken.ExpiredJwtException e) {
+            // 만료
+            // log.warn("[JWT] Token expired: {}", e.getMessage());
+            return false;
+        } catch (io.jsonwebtoken.security.SignatureException e) {
+            // 서명 불일치(비밀키 불일치)
+            // log.warn("[JWT] Signature mismatch: {}", e.getMessage());
+            return false;
+        } catch (io.jsonwebtoken.MalformedJwtException e) {
+            // 형식 오류
+            // log.warn("[JWT] Malformed token: {}", e.getMessage());
+            return false;
         } catch (Exception e) {
-            return false;  // 서명이 잘못되었거나, 만료되었으면 false 반환
+            // 기타 오류
+            // log.warn("[JWT] Unknown validation error: {}", e.getMessage());
+            return false;
         }
     }
 }

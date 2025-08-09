@@ -1,5 +1,6 @@
 package com.example.securityjwt.common;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -7,6 +8,7 @@ import lombok.NoArgsConstructor;
 @Data // @Getter, @Setter, @ToString, @EqualsAndHashCode, @RequiredArgsConstructor를 한번에 생성해줌 (Lombok)
 @NoArgsConstructor
 @AllArgsConstructor // 모든 필드를 받는 생성자 생성
+@JsonInclude(JsonInclude.Include.NON_NULL) // data가 null이면 JSON에 포함하지 않음 (응답을 깔끔하게)
 public class ApiResponse<T> {
     private boolean success;  // API 요청 성공 여부 (true/false)
     private String message;   // 응답 메시지 (성공, 실패 이유 등)
@@ -25,5 +27,10 @@ public class ApiResponse<T> {
     // 실패 응답 -> 실패 메시지만 전달하고, data는 null로 반환
     public static <T> ApiResponse<T> failure(String message) {
         return new ApiResponse<>(false, message, null);
+    }
+
+    // 실패 응답 -> 검증 오류 등 data에 에러 바디를 담아 내려주고 싶을 때 사용
+    public static <T> ApiResponse<T> failure(String message, T data) {
+        return new ApiResponse<>(false, message, data);
     }
 }

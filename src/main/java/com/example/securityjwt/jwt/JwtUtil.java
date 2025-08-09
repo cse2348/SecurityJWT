@@ -3,17 +3,20 @@ package com.example.securityjwt.jwt;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import javax.annotation.PostConstruct;
+import jakarta.annotation.PostConstruct; // Boot 3: jakarta 사용
 import javax.crypto.SecretKey;
-import java.util.Base64;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
 @Component
 public class JwtUtil {
+    // GitHub Secrets에서 주입받아 사용
+    @Value("${jwt.secret}")
+    private String secretKey;  // 32글자 이상 비밀키 설정
 
-    private String secretKey = "MySuperSecretKeyThatIsAtLeast32CharsLong!!";  // 32글자 이상 비밀키 설정
     private SecretKey key;  // 서명에 사용할 SecretKey 객체
 
     private final long accessTokenValidity = 60 * 60 * 1000L; // 1시간
@@ -21,9 +24,12 @@ public class JwtUtil {
 
     @PostConstruct
     public void init() {
-        // SecretKey를 Base64 인코딩 후 Key 객체로 변환하여 서명에 사용할 수 있도록 초기화
-        String encodedKey = Base64.getEncoder().encodeToString(secretKey.getBytes());
-        key = Keys.hmacShaKeyFor(encodedKey.getBytes());
+        // SecretKey를 HMAC-SHA용 Key 객체로 변환하여 서명에 사용할 수 있도록 초기화
+        if (secretKey == null || secretKey.length() < 32) {
+            // HS256은 최소 256bit(32바이트) 권장
+            throw new IllegalStateException("JWT 시크릿 키 길이가 32자 미만입니다. (환경변수 jwt.secret 확인)");
+        }
+        this.key = Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8));
     }
 
     //JWT를 발급하는 메서드

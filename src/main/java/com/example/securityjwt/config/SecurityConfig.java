@@ -15,6 +15,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.List;
@@ -25,7 +27,7 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtUtil jwtUtil;  // JWT를 발급하고 검증하는 유틸 클래스
-    private final UserDetailsService userDetailsService;  //사용자 정보를 DB에서 가져오는 서비스
+    private final UserDetailsService userDetailsService;  // 사용자 정보를 DB에서 가져오는 서비스
 
     // JwtAuthenticationFilter를 Bean으로 등록 -> 직접 new를 통해 의존성(JwtUtil, UserDetailsService)을 주입해 반환
     @Bean
@@ -39,6 +41,23 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
+    // CORS 설정을 Bean으로 분리 (가독성과 재사용성 ↑)
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration config = new CorsConfiguration();
+        // 허용할 Origin — 개발 단계에서는 "*" 가능, 배포 시에는 특정 도메인만
+        config.setAllowedOriginPatterns(List.of("https://winnerteam.store"));
+        // 허용할 HTTP 메서드
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        // 허용할 헤더
+        config.setAllowedHeaders(List.of("*"));
+        // 쿠키 및 인증정보 허용 여부
+        config.setAllowCredentials(true);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+        return source;
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -50,15 +69,8 @@ public class SecurityConfig {
                 // Form 기반 로그인 비활성화 (API 방식이므로 필요 없음)
                 .formLogin(form -> form.disable())
 
-                // CORS 설정 (Cross-Origin 요청 허용) -> 모든 Origin 허용 (배포 시에는 특정 도메인만 허용하는 것이 보안에 좋음)
-                .cors(cors -> cors.configurationSource(request -> {
-                    CorsConfiguration config = new CorsConfiguration();
-                    config.setAllowedOriginPatterns(List.of("https://winnerteam.store"));
-                    config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));  // 허용할 HTTP 메서드
-                    config.setAllowedHeaders(List.of("*"));  // 모든 헤더 허용
-                    config.setAllowCredentials(true);  // 쿠키 및 인증정보 허용 여부
-                    return config;
-                }))
+                // CORS 설정 (Cross-Origin 요청 허용)
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
 
                 // 세션을 사용하지 않는 Stateless 방식으로 설정 - JWT를 사용하기 때문에 세션X
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -70,14 +82,17 @@ public class SecurityConfig {
                         .requestMatchers("/health").permitAll()
                         .anyRequest().authenticated()  // 나머지 모든 요청은 인증이 필요함
                 )
+
                 // 로그아웃 처리
                 .logout(logout -> logout
                         .logoutSuccessHandler((request, response, authentication) -> {
                             response.setStatus(HttpServletResponse.SC_OK);  // 로그아웃 성공 시 200 OK 반환
                         })
                 )
+
                 // UsernamePasswordAuthenticationFilter 앞에 JWT 필터를 추가 -> 요청이 들어올 때마다 JWT 필터가 먼저 실행되어 토큰을 검증
                 .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
+
         // SecurityFilterChain 빌드 후 반환
         return http.build();
     }

@@ -11,8 +11,6 @@ jobs:
       AWS_REGION: ${{ secrets.AWS_REGION }}
       ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
       IMAGE_TAG: ${{ github.sha }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
     steps:
       - name: Checkout
@@ -24,6 +22,13 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
@@ -31,15 +36,13 @@ jobs:
         run: ./gradlew clean build -x test
 
       - name: Login to Amazon ECR
-        uses: aws-actions/amazon-ecr-login@v1
-        with:
-          aws-region: ${{ env.AWS_REGION }}
+        uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build and Push Docker Image to ECR
         run: |
           IMAGE_URI=${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
-          docker build -t $IMAGE_URI .
-          docker push $IMAGE_URI
+          docker build -t "$IMAGE_URI" .
+          docker push "$IMAGE_URI"
 
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.0.0
@@ -48,27 +51,32 @@ jobs:
           username: ec2-user
           key: ${{ secrets.EC2_KEY }}
           script: |
+            set -e
             IMAGE_URI=${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
 
-            # ECR Login (Token Expiry 대응)
-            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.ECR_REPOSITORY }}
+            # ECR login on EC2
+            aws ecr get-login-password --region ${{ env.AWS_REGION }} \
+              | docker login --username AWS --password-stdin $(echo "${{ env.ECR_REPOSITORY }}" | awk -F/ '{print $1}')
 
-            # .env 파일 작성
+            # runtime envs
             echo "SPRING_DATASOURCE_URL=${{ secrets.SPRING_DATASOURCE_URL }}" > .env
             echo "SPRING_DATASOURCE_USERNAME=${{ secrets.SPRING_DATASOURCE_USERNAME }}" >> .env
             echo "SPRING_DATASOURCE_PASSWORD=${{ secrets.SPRING_DATASOURCE_PASSWORD }}" >> .env
+            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
 
-            # 기존 컨테이너 중지 및 삭제
-            docker ps -q --filter "name=app" | grep -q . && docker stop app && docker rm app || echo "No existing container"
+            # pull new image
+            docker pull "$IMAGE_URI"
 
-            # 최신 이미지 Pull & Run
-            docker pull $IMAGE_URI
+            # stop & remove existing container if exists
+            docker ps -q --filter "name=app" | grep -q . && docker stop app || true
+            docker ps -aq --filter "name=app" | grep -q . && docker rm app || true
+
+            # run new container
             docker run -d \
-              --restart=always \
               --name app \
+              --restart=always \
               --env-file .env \
               -p 8080:8080 \
-              $IMAGE_URI
+              "$IMAGE_URI"
 
-            # .env 파일 삭제
-            rm .env
+            rm -f .env

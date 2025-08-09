@@ -97,6 +97,11 @@ public class AuthService {
             throw new IllegalArgumentException("유효하지 않은 리프레시 토큰입니다.");
         }
 
+        // 1-1) 토큰 타입이 'refresh' 인지 추가 확인(액세스를 실수로 보낸 케이스 차단)
+        if (!jwtUtil.isRefreshToken(refreshToken)) {
+            throw new IllegalArgumentException("유효하지 않은 리프레시 토큰입니다.");
+        }
+
         // 2) 토큰에서 사용자명 추출 (파싱 실패 시도 동일 메시지)
         String username;
         try {

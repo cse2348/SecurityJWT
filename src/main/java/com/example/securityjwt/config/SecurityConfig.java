@@ -48,7 +48,7 @@ public class SecurityConfig {
         config.setAllowedOriginPatterns(List.of(
                 "https://winnerteam.store",
                 "https://winner.site"
-                // ,"http://localhost:3000" // 로컬에서 테스트하면 주석 해제
+                // ,"http://localhost:3000" // 로컬 테스트 시 해제
         ));
         config.setAllowedMethods(List.of("GET","POST","PUT","DELETE","OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization","Content-Type","Accept","Origin","X-Requested-With","Cache-Control"));
@@ -75,9 +75,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // 헬스체크는 반드시 허용
                         .requestMatchers("/health", "/actuator/health").permitAll()
-                        // 공개 인증 API
-                        .requestMatchers("/auth/**").permitAll()
-                        // 나머지는 인증 필요
+                        // 공개 인증 API (/auth/me 는 제외)
+                        .requestMatchers("/auth/login", "/auth/signup", "/auth/refresh").permitAll()
+                        // 나머지는 인증 필요 -> /auth/me 포함
                         .anyRequest().authenticated()
                 )
 

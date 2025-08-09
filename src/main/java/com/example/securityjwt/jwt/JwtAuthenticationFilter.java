@@ -20,11 +20,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtUtil jwtUtil;  // 토큰을 생성, 검증, 파싱하는 유틸 클래스
     private final UserDetailsService userDetailsService;  // 유저 정보를 DB에서 가져오는 서비스
 
-    // /auth/** 경로(로그인/회원가입/리프레시)는 필터 패스 (리프레시 로직 방해 금지)
+    // 로그인/회원가입/리프레시만 필터 패스 (/auth/me 는 필터를 타야 함)
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
         String uri = request.getRequestURI();
-        return uri.startsWith("/auth/");
+        return uri.equals("/auth/login")
+                || uri.equals("/auth/signup")
+                || uri.equals("/auth/refresh");
     }
 
     @Override

@@ -1,7 +1,7 @@
-package com.example.securityjwt.Service;
+package com.example.securityjwt.service;
 
-import com.example.securityjwt.Entity.User;
-import com.example.securityjwt.Repository.UserRepository;
+import com.example.securityjwt.entity.User;
+import com.example.securityjwt.repository.UserRepository;
 import com.example.securityjwt.dto.UserResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;

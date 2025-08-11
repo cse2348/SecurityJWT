@@ -1,4 +1,4 @@
-package com.example.securityjwt.Controller;
+package com.example.securityjwt.controller;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;

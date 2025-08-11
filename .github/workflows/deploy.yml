@@ -2,7 +2,7 @@ name: Deploy to EC2
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "master" ]
 
 jobs:
   deploy:
@@ -58,11 +58,25 @@ jobs:
             aws ecr get-login-password --region ${{ env.AWS_REGION }} \
               | docker login --username AWS --password-stdin $(echo "${{ env.ECR_REPOSITORY }}" | awk -F/ '{print $1}')
 
-            # runtime envs
+            # runtime envs (최소 추가: OAuth2 클라이언트/리다이렉트, JWT 시크릿)
             echo "SPRING_DATASOURCE_URL=${{ secrets.SPRING_DATASOURCE_URL }}" > .env
             echo "SPRING_DATASOURCE_USERNAME=${{ secrets.SPRING_DATASOURCE_USERNAME }}" >> .env
             echo "SPRING_DATASOURCE_PASSWORD=${{ secrets.SPRING_DATASOURCE_PASSWORD }}" >> .env
             echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
+
+            # OAuth2: 구글/카카오/네이버 클라이언트 정보
+            echo "OAUTH_GOOGLE_CLIENT_ID=${{ secrets.OAUTH_GOOGLE_CLIENT_ID }}" >> .env
+            echo "OAUTH_GOOGLE_CLIENT_SECRET=${{ secrets.OAUTH_GOOGLE_CLIENT_SECRET }}" >> .env
+
+            echo "OAUTH_KAKAO_CLIENT_ID=${{ secrets.OAUTH_KAKAO_CLIENT_ID }}" >> .env
+            echo "OAUTH_KAKAO_CLIENT_SECRET=${{ secrets.OAUTH_KAKAO_CLIENT_SECRET }}" >> .env
+
+            echo "OAUTH_NAVER_CLIENT_ID=${{ secrets.OAUTH_NAVER_CLIENT_ID }}" >> .env
+            echo "OAUTH_NAVER_CLIENT_SECRET=${{ secrets.OAUTH_NAVER_CLIENT_SECRET }}" >> .env
+
+            #OAuth 성공/실패 리다이렉트 URL (성공 URL은 SuccessHandler에서 사용)
+            echo "OAUTH_LOGIN_SUCCESS_URL=${{ secrets.OAUTH_LOGIN_SUCCESS_URL }}" >> .env
+            echo "OAUTH_LOGIN_FAIL_URL=${{ secrets.OAUTH_LOGIN_FAIL_URL }}" >> .env
 
             # pull new image
             docker pull "$IMAGE_URI"

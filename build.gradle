@@ -25,26 +25,26 @@ dependencies {
 	testAnnotationProcessor 'org.projectlombok:lombok'
 
 	// Spring
-	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
-	implementation 'org.springframework.security:spring-security-crypto'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
-
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
 	// DB
-	runtimeOnly 'com.h2database:h2'              // 로컬 테스트용
-	runtimeOnly 'com.mysql:mysql-connector-j'    // 운영 MySQL
+	runtimeOnly 'com.h2database:h2'           // 로컬
+	runtimeOnly 'com.mysql:mysql-connector-j' // 운영 MySQL
 
-	// JWT
+	// JWT (JJWT)
 	implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
 	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
 	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
 
-	// (선택) JSON 유틸
-	implementation 'org.json:json:20240303'
+	// (선택) org.json 필요 없으면 제거해도 됨
+	// implementation 'org.json:json:20240303'
 
 	// Test
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation 'org.springframework.security:spring-security-test'
 }

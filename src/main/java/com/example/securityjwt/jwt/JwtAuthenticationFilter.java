@@ -7,11 +7,13 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -58,12 +60,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     // 3) 토큰에서 userId/role 추출
                     Long userId = jwtUtil.getUserIdFromToken(token);
                     String role = jwtUtil.getUserRoleFromToken(token);
+
                     if (userId != null) {
-                        // 4) DB 조회 없이 가벼운 Principal 구성 → 무상태 인증
+                        // 4) ROLE_ 프리픽스 붙이기
+                        String normalizedRole = (role != null && !role.isBlank())
+                                ? (role.startsWith("ROLE_") ? role : "ROLE_" + role)
+                                : null;
+
+                        // 5) 권한 리스트 생성 (Collections.emptyList()로 타입 안전)
+                        List<GrantedAuthority> authorities =
+                                (normalizedRole != null)
+                                        ? List.of(new SimpleGrantedAuthority(normalizedRole))
+                                        : Collections.emptyList();
+
+                        // 6) DB 조회 없이 가벼운 Principal 구성 → 무상태 인증
                         JwtPrincipal principal = new JwtPrincipal(userId);
-                        var authorities = (role != null)
-                                ? List.of(new SimpleGrantedAuthority(role))
-                                : List.of();
 
                         // 비밀번호는 null, 권한 정보 포함
                         var authentication = new UsernamePasswordAuthenticationToken(principal, null, authorities);

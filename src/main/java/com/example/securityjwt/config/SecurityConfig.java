@@ -4,6 +4,7 @@ import com.example.securityjwt.jwt.JwtAuthenticationFilter;
 import com.example.securityjwt.jwt.JwtUtil;
 import com.example.securityjwt.oauth.CustomOAuth2UserService;
 import com.example.securityjwt.oauth.OAuth2SuccessHandler;
+import com.example.securityjwt.oauth.OAuth2FailureHandler;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -33,6 +34,7 @@ public class SecurityConfig {
     // OAuth2 로그인에 필요한 컴포넌트들 주입
     private final CustomOAuth2UserService customOAuth2UserService;
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
+    private final OAuth2FailureHandler oAuth2FailureHandler;
 
     // JwtAuthenticationFilter에는 @Component 달지 말고, 여기 @Bean만 사용 (체인에 한 번만 등록)
     @Bean
@@ -94,15 +96,16 @@ public class SecurityConfig {
 
                 // OAuth2 로그인 설정
                 .oauth2Login(oauth -> oauth
-                                // /oauth2/authorize/{provider} 로 시작 (구글/카카오/네이버 버튼이 이 경로로 이동)
-                                .authorizationEndpoint(ae -> ae.baseUri("/oauth2/authorize"))
-                                // 소셜 콘솔에 등록한 redirect-uri와 매칭 (예: /oauth2/callback/google)
-                                .redirectionEndpoint(re -> re.baseUri("/oauth2/callback/*"))
-                                // 사용자 정보 파서(자동 회원가입 포함)
-                                .userInfoEndpoint(ue -> ue.userService(customOAuth2UserService))
-                                // 성공 시: JWT 쿠키 발급 + 프론트 성공 URL로 리다이렉트
-                                .successHandler(oAuth2SuccessHandler)
-                        // .failureHandler(oAuth2FailureHandler) // 필요 시 주석 해제
+                        // /oauth2/authorize/{provider} 로 시작 (구글/카카오/네이버 버튼이 이 경로로 이동)
+                        .authorizationEndpoint(ae -> ae.baseUri("/oauth2/authorize"))
+                        // 소셜 콘솔에 등록한 redirect-uri와 매칭 (예: /oauth2/callback/google)
+                        .redirectionEndpoint(re -> re.baseUri("/oauth2/callback/*"))
+                        // 사용자 정보 파서(자동 회원가입 포함)
+                        .userInfoEndpoint(ue -> ue.userService(customOAuth2UserService))
+                        // 성공 시: JWT 쿠키 발급 + JSON 응답 반환 (리다이렉트 없음)
+                        .successHandler(oAuth2SuccessHandler)
+                        // 실패 시: JSON 에러 응답 (리다이렉트 없음)
+                        .failureHandler(oAuth2FailureHandler)
                 )
 
                 // 401/403을 JSON으로 명확히 내려주기 (디버깅 편의)

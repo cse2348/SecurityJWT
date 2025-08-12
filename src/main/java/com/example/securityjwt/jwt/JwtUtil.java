@@ -12,12 +12,9 @@ import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
-/**
- * JWT 토큰 생성/파싱/검증 유틸
- * - 2주차 흐름에 맞춰 subject는 username → userId 로 변경
- * - Access 토큰에는 role 클레임 포함 (인가에 사용)
- * - Refresh 토큰에는 tokenType=refresh 로 구분
- */
+// JWT 토큰 생성/파싱/검증 유틸
+// - Access Token: userId + role (인가용)
+// - Refresh Token: userId만 포함 (재발급용)
 @Component
 public class JwtUtil {
     // GitHub Secrets에서 주입받아 사용

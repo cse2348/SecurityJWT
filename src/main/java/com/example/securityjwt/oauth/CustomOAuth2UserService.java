@@ -20,7 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 
-// 소셜 사용자 정보를 표준화하고, 최초 로그인 시 자동 회원가입 처리
 @Service
 @RequiredArgsConstructor
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
@@ -38,52 +37,67 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
         OAuth2UserInfo info = switch (provider) {
             case "google" -> new GoogleUserInfo(rawAttributes);
-            case "kakao"  -> new KakaoUserInfo(rawAttributes);
-            case "naver"  -> new NaverUserInfo(rawAttributes);
+            case "kakao" -> new KakaoUserInfo(rawAttributes);
+            case "naver" -> new NaverUserInfo(rawAttributes);
             default -> throw new OAuth2AuthenticationException(
                     new OAuth2Error("unsupported_provider"),
                     "Unsupported provider: " + registrationId);
         };
 
-        String providerId = String.valueOf(info.getProviderId()); // Long/Integer 대비
-        String email = info.getEmail(); // 카카오는 null 가능
-        String name  = info.getName();
+        String providerId = String.valueOf(info.getProviderId());
+        String email = info.getEmail();
+        String name = info.getName();
 
-        // 계정 식별은 provider + providerId (email 미동의 케이스 대응)
-        User user = userRepository.findByProviderAndProviderId(info.getProvider(), providerId)
-                .orElseGet(() -> {
-                    User u = new User();
-                    u.setProvider(info.getProvider());
-                    u.setProviderId(providerId);
-                    u.setEmail(email);
-                    u.setName(name);
-                    u.setRole("ROLE_USER");
-                    return userRepository.save(u);
-                });
+        // provider와 providerId로 이미 가입된 사용자인지 확인
+        Optional<User> userOptional = userRepository.findByProviderAndProviderId(info.getProvider(), providerId);
+        User user;
 
-        // 프로필 변경 동기화
-        boolean updated = false;
-        if (email != null && !email.equals(user.getEmail())) { user.setEmail(email); updated = true; }
-        if (name  != null && !name.equals(user.getName()))  { user.setName(name);  updated = true; }
-        if (updated) userRepository.save(user);
+        if (userOptional.isPresent()) {
+            // 이미 해당 소셜 계정으로 가입된 경우 -> 기존 정보 업데이트 (이름, 이메일 등)
+            user = userOptional.get();
+            boolean updated = false;
+            if (email != null && !email.equals(user.getEmail())) { user.setEmail(email); updated = true; }
+            if (name != null && !name.equals(user.getName())) { user.setName(name); updated = true; }
+            if (updated) {
+                user = userRepository.save(user);
+            }
+        } else {
+            // 해당 소셜 계정으로 가입된 적이 없는 경우 -> 이메일로 이미 가입된 사용자인지 확인
+            Optional<User> userByEmailOptional = (email != null) ? userRepository.findByEmail(email) : Optional.empty();
+
+            if (userByEmailOptional.isPresent()) {
+                // 이메일이 이미 존재하면 -> 기존 계정에 소셜 정보 연동
+                user = userByEmailOptional.get();
+                user.setProvider(info.getProvider());
+                user.setProviderId(providerId);
+            } else {
+                // 이메일도 존재하지 않으면 -> 신규 회원가입
+                user = new User();
+                user.setProvider(info.getProvider());
+                user.setProviderId(providerId);
+                user.setEmail(email);
+                user.setName(name);
+                user.setRole("ROLE_USER");
+            }
+            user = userRepository.save(user);
+        }
 
         String role = (user.getRole() != null && user.getRole().startsWith("ROLE_"))
                 ? user.getRole() : "ROLE_USER";
         Collection<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority(role));
 
-        // DefaultOAuth2User의 nameAttributeKey/attributes 설정
         String nameAttributeKey;
         Map<String, Object> attributesForPrincipal;
 
         switch (provider) {
             case "google" -> {
                 nameAttributeKey = "sub";
-                attributesForPrincipal = rawAttributes; // root에 sub/email/name 등
+                attributesForPrincipal = rawAttributes;
                 requireKey(attributesForPrincipal, nameAttributeKey, "Google userinfo");
             }
             case "kakao" -> {
                 nameAttributeKey = "id";
-                attributesForPrincipal = rawAttributes; // root에 id, kakao_account, profile 등
+                attributesForPrincipal = rawAttributes;
                 requireKey(attributesForPrincipal, nameAttributeKey, "Kakao userinfo");
             }
             case "naver" -> {
@@ -97,7 +111,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> responseMap = new LinkedHashMap<>((Map<String, Object>) response);
                 requireKey(responseMap, nameAttributeKey, "Naver userinfo.response");
-                attributesForPrincipal = responseMap; // attributes로 'response' 맵 사용
+                attributesForPrincipal = responseMap;
             }
             default -> throw new OAuth2AuthenticationException(
                     new OAuth2Error("unsupported_provider"),

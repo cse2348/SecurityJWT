@@ -15,8 +15,6 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
-import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizationRequestResolver;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -37,9 +35,6 @@ public class SecurityConfig {
     private final CustomOAuth2UserService customOAuth2UserService;
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
     private final OAuth2FailureHandler oAuth2FailureHandler;
-
-    // OAuth2 클라이언트 등록 정보 (구글/카카오/네이버 공통)
-    private final ClientRegistrationRepository clientRegistrationRepository;
 
     // JWT 인증 필터 (요청 시 토큰 검증)
     @Bean
@@ -71,14 +66,6 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
-        // 모든 OAuth2 redirect_uri를 고정 -> {registrationId}로 서비스명 자동 치환 (google, kakao, naver)
-        // - 프록시/헤더 문제와 관계없이 항상 동일한 redirect_uri 보장
-        DefaultOAuth2AuthorizationRequestResolver resolver =
-                new DefaultOAuth2AuthorizationRequestResolver(clientRegistrationRepository, "/oauth2/authorize");
-        resolver.setAuthorizationRequestCustomizer(customizer ->
-                customizer.redirectUri("https://winnerteam.store/oauth2/callback/{registrationId}")
-        );
-
         http
                 // CSRF/폼로그인/HTTP Basic 인증 비활성화
                 .csrf(csrf -> csrf.disable())
@@ -87,9 +74,8 @@ public class SecurityConfig {
 
                 // CORS 적용
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-
-                // 세션 사용 안 함 (JWT 기반)
-                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // 세션 관리 설정
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
 
                 // URL 접근 권한 설정
                 .authorizeHttpRequests(auth -> auth
@@ -102,11 +88,8 @@ public class SecurityConfig {
 
                 // OAuth2 로그인 설정
                 .oauth2Login(oauth -> oauth
-                        // 인가 요청 엔드포인트 + redirect_uri 고정 resolver 적용
-                        .authorizationEndpoint(ae -> ae
-                                .baseUri("/oauth2/authorize")
-                                .authorizationRequestResolver(resolver)
-                        )
+                        // 인가 요청 엔드포인트 (properties의 절대 redirect-uri 사용)
+                        .authorizationEndpoint(ae -> ae.baseUri("/oauth2/authorize"))
                         // 콜백 엔드포인트 (서비스별로 /oauth2/callback/{registrationId})
                         .redirectionEndpoint(re -> re.baseUri("/oauth2/callback/*"))
                         // 사용자 정보 처리

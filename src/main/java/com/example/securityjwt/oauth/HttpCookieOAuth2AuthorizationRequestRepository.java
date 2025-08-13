@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.oauth2.client.web.AuthorizationRequestRepository;
 import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequest;
+import org.springframework.util.SerializationUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -47,6 +48,6 @@ public class HttpCookieOAuth2AuthorizationRequestRepository
 
     private OAuth2AuthorizationRequest deserialize(String val) {
         byte[] bytes = Base64.getUrlDecoder().decode(val.getBytes(StandardCharsets.UTF_8));
-        return SerializationUtils.deserialize(bytes);
+        return (OAuth2AuthorizationRequest) SerializationUtils.deserialize(bytes);
     }
 }

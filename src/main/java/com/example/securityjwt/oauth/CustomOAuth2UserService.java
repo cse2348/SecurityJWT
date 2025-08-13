@@ -29,12 +29,15 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
     @Override
     @Transactional
     public OAuth2User loadUser(OAuth2UserRequest req) throws OAuth2AuthenticationException {
+        // 소셜 제공자로부터 사용자 정보 요청
         OAuth2User raw = super.loadUser(req);
         Map<String, Object> rawAttributes = safeMap(raw.getAttributes(), "root");
 
+        // 요청한 OAuth2 제공자 ID (google/kakao/naver)
         String registrationId = req.getClientRegistration().getRegistrationId();
         String provider = (registrationId == null ? "" : registrationId.toLowerCase(Locale.ROOT));
 
+        // 제공자별 사용자 정보 파서 생성
         OAuth2UserInfo info = switch (provider) {
             case "google" -> new GoogleUserInfo(rawAttributes);
             case "kakao" -> new KakaoUserInfo(rawAttributes);
@@ -44,16 +47,17 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                     "Unsupported provider: " + registrationId);
         };
 
+        // 제공자별 사용자 식별 정보
         String providerId = String.valueOf(info.getProviderId());
         String email = info.getEmail();
         String name = info.getName();
 
-        // provider와 providerId로 이미 가입된 사용자인지 확인
+        // provider + providerId 로 사용자 존재 여부 확인
         Optional<User> userOptional = userRepository.findByProviderAndProviderId(info.getProvider(), providerId);
         User user;
 
         if (userOptional.isPresent()) {
-            // 이미 해당 소셜 계정으로 가입된 경우 -> 기존 정보 업데이트 (이름, 이메일 등)
+            // 기존 소셜 로그인 사용자 → 이메일, 이름 변경 시 업데이트
             user = userOptional.get();
             boolean updated = false;
             if (email != null && !email.equals(user.getEmail())) { user.setEmail(email); updated = true; }
@@ -62,16 +66,16 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                 user = userRepository.save(user);
             }
         } else {
-            // 해당 소셜 계정으로 가입된 적이 없는 경우 -> 이메일로 이미 가입된 사용자인지 확인
+            // 소셜 계정 미가입 → 이메일로 기존 가입 여부 확인
             Optional<User> userByEmailOptional = (email != null) ? userRepository.findByEmail(email) : Optional.empty();
 
             if (userByEmailOptional.isPresent()) {
-                // 이메일이 이미 존재하면 -> 기존 계정에 소셜 정보 연동
+                // 이메일 존재 → 기존 계정에 소셜 정보 연동
                 user = userByEmailOptional.get();
                 user.setProvider(info.getProvider());
                 user.setProviderId(providerId);
             } else {
-                // 이메일도 존재하지 않으면 -> 신규 회원가입
+                // 이메일도 없음 → 신규 회원가입
                 user = new User();
                 user.setProvider(info.getProvider());
                 user.setProviderId(providerId);
@@ -82,13 +86,17 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             user = userRepository.save(user);
         }
 
+        // 권한 설정 (ROLE_ 접두사 필수)
         String role = (user.getRole() != null && user.getRole().startsWith("ROLE_"))
                 ? user.getRole() : "ROLE_USER";
         Collection<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority(role));
 
+        // OAuth2User principal 생성에 필요한 key와 attributes 설정
         String nameAttributeKey;
         Map<String, Object> attributesForPrincipal;
-
+        // 제공자별로 사용자 정보 key 설정; Google: sub, Kakao: id, Naver: response.id
+        // 각 제공자에 따라 사용자 정보 Map에서 필요한 key를 추출하여 principal 생성
+        // 예외 발생 시 OAuth2AuthenticationException으로 처리
         switch (provider) {
             case "google" -> {
                 nameAttributeKey = "sub";
@@ -118,10 +126,11 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                     "Unsupported provider: " + registrationId);
         }
 
+        // DefaultOAuth2User 반환 (Spring Security 내부 인증 객체)
         return new DefaultOAuth2User(authorities, attributesForPrincipal, nameAttributeKey);
     }
 
-    // ===== 유틸 =====
+    // attributes null 여부 검증
     private Map<String, Object> safeMap(Map<String, Object> src, String where) {
         if (src == null) {
             throw new OAuth2AuthenticationException(new OAuth2Error("invalid_userinfo"),
@@ -130,6 +139,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         return src;
     }
 
+    // 필수 key 존재 여부 검증
     private void requireKey(Map<String, Object> map, String key, String where) {
         if (!map.containsKey(key)) {
             throw new OAuth2AuthenticationException(

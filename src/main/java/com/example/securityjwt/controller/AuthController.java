@@ -48,7 +48,8 @@ public class AuthController {
                 : ApiResponse.failure("토큰 재발급 실패");
     }
 
-    // ===== 내부 유틸 =====
+    // 토큰 재발급 시 쿠키에서 REFRESH_TOKEN 추출 → Authorization 헤더에서 Bearer 토큰 추출
+    // 쿠키가 없으면 Authorization 헤더에서 Bearer 토큰을 추출 -> 둘 다 없으면 null 반환
     private String extractRefreshToken(HttpServletRequest req, String authorization) {
         if (req.getCookies() != null) {
             for (Cookie c : req.getCookies()) {
@@ -57,6 +58,7 @@ public class AuthController {
                 }
             }
         }
+        // Authorization 헤더에서 Bearer 토큰 추출
         if (authorization != null && authorization.startsWith("Bearer ")) {
             return authorization.substring(7).trim();
         }

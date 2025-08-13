@@ -6,7 +6,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 // API 표준 응답 형식 클래스 -> 모든 컨트롤러에서 동일한 응답 구조를 제공하기 위해 사용 ; success, message, data 필드로 구성됨
-// @param <T> 응답 데이터의 타입 (제네릭)
 @Data // @Getter, @Setter, @ToString, @EqualsAndHashCode, @RequiredArgsConstructor를 한번에 생성해줌 (Lombok)
 @NoArgsConstructor
 @AllArgsConstructor // 모든 필드를 받는 생성자 생성

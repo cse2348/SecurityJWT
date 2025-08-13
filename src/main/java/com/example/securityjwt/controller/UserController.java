@@ -20,13 +20,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserController {
 
     private final UserRepository userRepository;
-
+    // 현재 인증된 사용자 정보 조회
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<UserResponse>> me(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()) {
             return ResponseEntity.status(401).body(ApiResponse.failure("Unauthorized"));
         }
-
+        // Authentication 객체에서 principal 추출
         Object principal = authentication.getPrincipal();
 
         // 우리 엔티티(User)가 principal
@@ -52,7 +52,7 @@ public class UserController {
                     .orElseGet(() -> ResponseEntity.status(404).body(ApiResponse.failure("User not found")));
         }
 
-        // OAuth2User: email 또는 name으로 조회 시도
+        // OAuth2User -> email 또는 name으로 조회 시도
         if (principal instanceof org.springframework.security.oauth2.core.user.OAuth2User oAuth2User) {
             String key = (String) oAuth2User.getAttributes().getOrDefault("email", oAuth2User.getName());
             return userRepository.findByUsername(key)
@@ -62,7 +62,7 @@ public class UserController {
                     .map(ResponseEntity::ok)
                     .orElseGet(() -> ResponseEntity.status(404).body(ApiResponse.failure("User not found")));
         }
-
+        // 지원하지 않는 principal 타입
         return ResponseEntity.status(500).body(ApiResponse.failure("Unsupported principal type"));
     }
 }

@@ -26,29 +26,34 @@ public class OAuth2FailureHandler implements AuthenticationFailureHandler {
     public void onAuthenticationFailure(HttpServletRequest request,
                                         HttpServletResponse response,
                                         AuthenticationException exception) {
+        // 요청 단위 추적을 위한 traceId 생성
         String traceId = UUID.randomUUID().toString();
         try {
+            // 실패 로그 출력
             log.warn("[OAuth2][FAIL][{}] type={} msg={}", traceId, exception.getClass().getSimpleName(), exception.getMessage());
 
-            // 세션 사용 중이라면 세션 제거 (세션 저장소 사용 시)
+            // 기존 세션 무효화
             if (request.getSession(false) != null) {
                 request.getSession(false).invalidate();
             }
-            // 토큰 쿠키 제거
+            // 기존 토큰 쿠키 삭제
             clearCookie(response, "ACCESS_TOKEN", "winnerteam.store");
             clearCookie(response, "REFRESH_TOKEN", "winnerteam.store");
 
+            // 기본 에러 코드와 메시지
             String errorCode = "auth_failure";
             String message = exception.getMessage();
             String provider = guessProviderFromRequest(request);
 
+            // OAuth2AuthenticationException인 경우 세부 에러 코드 설정
             if (exception instanceof OAuth2AuthenticationException oae) {
                 OAuth2Error err = oae.getError();
                 if (err != null && err.getErrorCode() != null) {
-                    errorCode = err.getErrorCode(); // e.g., invalid_request, access_denied
+                    errorCode = err.getErrorCode();
                 }
             }
 
+            // 응답 바디 구성
             Map<String, Object> body = new HashMap<>();
             body.put("status", "fail");
             body.put("error", errorCode);
@@ -56,17 +61,19 @@ public class OAuth2FailureHandler implements AuthenticationFailureHandler {
             body.put("provider", provider);
             body.put("traceId", traceId);
 
-            // CORS/헤더
+            // CORS 및 응답 헤더 설정
             response.setHeader("Access-Control-Allow-Origin", "https://winnerteam.store");
             response.setHeader("Access-Control-Allow-Credentials", "true");
             response.setCharacterEncoding(StandardCharsets.UTF_8.name());
             response.setContentType("application/json;charset=UTF-8");
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
 
+            // JSON 응답 전송
             objectMapper.writeValue(response.getWriter(), body);
             response.getWriter().flush();
 
         } catch (Exception e) {
+            // 실패 처리 중 예외 발생 시 기본 에러 응답 전송
             log.error("[OAuth2][FAIL][{}] failureHandler error: {}", traceId, e.toString());
             try {
                 response.resetBuffer();
@@ -83,6 +90,7 @@ public class OAuth2FailureHandler implements AuthenticationFailureHandler {
         }
     }
 
+    // 쿠키 삭제 유틸
     private void clearCookie(HttpServletResponse res, String name, String domain) {
         Cookie cookie = new Cookie(name, "");
         cookie.setPath("/");
@@ -93,6 +101,7 @@ public class OAuth2FailureHandler implements AuthenticationFailureHandler {
         res.addCookie(cookie);
     }
 
+    // 요청 URI 또는 Referer로부터 OAuth2 제공자 추측
     private String guessProviderFromRequest(HttpServletRequest req) {
         String uri = req.getRequestURI();
         if (uri != null) {
@@ -109,6 +118,7 @@ public class OAuth2FailureHandler implements AuthenticationFailureHandler {
         return "unknown";
     }
 
+    // 메시지 길이 제한 및 기본 메시지 처리
     private String safeMessage(String msg) {
         if (msg == null || msg.isBlank()) return "Authentication failed";
         return msg.length() > 500 ? msg.substring(0, 500) + "..." : msg;

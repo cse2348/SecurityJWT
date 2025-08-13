@@ -31,16 +31,19 @@ public class SecurityConfig {
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
     private final OAuth2FailureHandler oAuth2FailureHandler;
 
+    // JWT 인증 필터 Bean 등록
     @Bean
     public JwtAuthenticationFilter jwtAuthenticationFilter() {
         return new JwtAuthenticationFilter(jwtUtil);
     }
 
+    // 비밀번호 암호화용 PasswordEncoder Bean 등록
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
+    // CORS 설정 Bean 등록
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration c = new CorsConfiguration();
@@ -53,19 +56,28 @@ public class SecurityConfig {
         return s;
     }
 
+    // OAuth2 인증 요청을 쿠키에 저장/조회하는 Repository Bean
     @Bean
     public HttpCookieOAuth2AuthorizationRequestRepository authReqRepo() {
         return new HttpCookieOAuth2AuthorizationRequestRepository();
     }
 
+    // Spring Security 필터 체인 설정
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
+                // CSRF 비활성화, 기본 로그인/폼 로그인 비활성화
                 .csrf(csrf -> csrf.disable())
                 .httpBasic(b -> b.disable())
                 .formLogin(f -> f.disable())
+
+                // CORS 설정 적용
                 .cors(c -> c.configurationSource(corsConfigurationSource()))
+
+                // 세션 미사용 (STATELESS)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
+                // URL별 접근 권한 설정
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/health", "/actuator/health").permitAll()
@@ -74,6 +86,8 @@ public class SecurityConfig {
                         .requestMatchers("/oauth2/**").permitAll()
                         .anyRequest().authenticated()
                 )
+
+                // OAuth2 로그인 설정
                 .oauth2Login(o -> o
                         .authorizationEndpoint(ae -> ae
                                 .baseUri("/oauth2/authorize")
@@ -84,6 +98,8 @@ public class SecurityConfig {
                         .successHandler(oAuth2SuccessHandler)
                         .failureHandler(oAuth2FailureHandler)
                 )
+
+                // 인증/인가 실패 응답 처리
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((req, res, e) -> {
                             res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
@@ -96,6 +112,8 @@ public class SecurityConfig {
                             res.getWriter().write("{\"success\":false,\"message\":\"FORBIDDEN\",\"data\":null}");
                         })
                 )
+
+                // UsernamePasswordAuthenticationFilter 전에 JWT 필터 등록
                 .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

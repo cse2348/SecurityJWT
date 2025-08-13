@@ -40,11 +40,11 @@ public class GlobalExceptionHandler {
                     return m;
                 })
                 .collect(Collectors.toList());
-
+        // 에러 메시지와 필드 정보를 담은 Map 생성
         Map<String, Object> body = new HashMap<>();
         body.put("message", "요청 값이 올바르지 않습니다.");
         body.put("errors", errors);
-
+        // 검증 실패 응답 반환
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.failure("검증 실패", body));

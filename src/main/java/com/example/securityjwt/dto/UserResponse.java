@@ -16,7 +16,7 @@ public class UserResponse {
     private String name;     // 표시 이름(소셜/로컬 공용)
     private String email;    // 이메일(카카오/네이버는 null 가능)
 
-    // 엔티티 -> DTO 변환 헬퍼
+    // 엔티티 -> DTO 변환
     public static UserResponse from(User user) {
         return UserResponse.builder()
                 .id(user.getId())

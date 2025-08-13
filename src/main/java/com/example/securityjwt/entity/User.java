@@ -7,8 +7,6 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 //로컬 로그인 & 소셜 로그인 모두 처리 가능
-// Spring Security UserDetails 미구현 (수동 JWT 발급 방식이므로 불필요)
-
 @Entity
 @Table(name = "users") // MySQL 등에서 user 는 예약어라 안전하게 별도 테이블명 사용
 @Getter
@@ -17,7 +15,7 @@ import lombok.Setter;
 public class User {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)  // Auto Increment
+    @GeneratedValue(strategy = GenerationType.IDENTITY)  // MySQL의 auto_increment와 호환
     private Long id;
 
     //  로컬 로그인용 필드

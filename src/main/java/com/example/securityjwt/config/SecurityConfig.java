@@ -37,14 +37,16 @@ public class SecurityConfig {
     }
 
     @Bean
-    public PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration c = new CorsConfiguration();
         c.setAllowedOrigins(List.of("https://winnerteam.store"));
-        c.setAllowedMethods(List.of("GET","POST","PUT","DELETE","OPTIONS"));
-        c.setAllowedHeaders(List.of("Authorization","Content-Type","Accept","Origin","X-Requested-With","Cache-Control"));
+        c.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        c.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With", "Cache-Control"));
         c.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource s = new UrlBasedCorsConfigurationSource();
         s.registerCorsConfiguration("/**", c);
@@ -74,7 +76,7 @@ public class SecurityConfig {
                 .oauth2Login(o -> o
                         .authorizationEndpoint(ae -> ae
                                 .baseUri("/oauth2/authorize")
-                                .authorizationRequestRepository(authReqRepo()) // ★ 교체됨
+                                .authorizationRequestRepository(authReqRepo())
                         )
                         .redirectionEndpoint(re -> re.baseUri("/oauth2/callback/*"))
                         .userInfoEndpoint(ue -> ue.userService(customOAuth2UserService))

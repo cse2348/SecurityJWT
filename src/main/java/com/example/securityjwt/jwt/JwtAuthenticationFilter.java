@@ -16,11 +16,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-/**
- * 매 요청마다 JWT 토큰을 검사해 인증 정보를 SecurityContextHolder에 저장.
- * - JwtUtil로 토큰 검증/파싱
- * - OAuth2 시작/콜백, 회원가입/로그인/리프레시, 헬스체크, OPTIONS는 패스
- */
+// 매 요청마다 JWT 토큰을 검사해 인증 정보를 SecurityContextHolder에 저장 -> JwtUtil로 토큰 검증/파싱
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
@@ -33,7 +29,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return uri.equals("/auth/login")
                 || uri.equals("/auth/signup")
                 || uri.equals("/auth/refresh")
-                || uri.startsWith("/oauth2/")   // 소셜 로그인 시작/콜백
+                || uri.startsWith("/oauth2/")
                 || uri.equals("/health")
                 || uri.equals("/actuator/health");
     }
@@ -48,8 +44,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 // 토큰 추출 (쿠키 우선 → Authorization 헤더)
                 String token = resolveAccessToken(request);
 
+                // 토큰이 없으면 그냥 다음 필터로 통과
+                if (token == null || token.isBlank()) {
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+
                 // 토큰 유효성 & 타입 검증
-                if (token != null && jwtUtil.validateToken(token) && jwtUtil.isAccessToken(token)) {
+                if (jwtUtil.validateToken(token) && jwtUtil.isAccessToken(token)) {
                     Long userId = jwtUtil.getUserIdFromToken(token);
                     String role = jwtUtil.getUserRoleFromToken(token);
 
@@ -78,11 +80,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
-    /**
-     * Access 토큰 추출
-     * 1) HttpOnly 쿠키 ACCESS_TOKEN
-     * 2) Authorization: Bearer ...
-     */
+    // Access 토큰 추출
     private String resolveAccessToken(HttpServletRequest request) {
         // 쿠키
         if (request.getCookies() != null) {

@@ -27,55 +27,62 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest req, HttpServletResponse res, Authentication auth) throws IOException {
-        // provider 구하기 (google/kakao/naver)
         OAuth2AuthenticationToken oauth = (OAuth2AuthenticationToken) auth;
         String provider = oauth.getAuthorizedClientRegistrationId().toLowerCase(Locale.ROOT);
 
-        // providerId 추출 (CustomOAuth2UserService에서 naver는 attributes를 response 맵으로 바꿔둠)
         OAuth2User principal = (OAuth2User) oauth.getPrincipal();
         Map<String, Object> attrs = principal.getAttributes();
-        String providerId = extractProviderId(provider, attrs); // "sub"/"id" 등
+        String providerId = extractProviderId(provider, attrs); // google: sub / kakao: id / naver: response.id
 
-        // DB 사용자 조회 (최초 로그인은 CustomOAuth2UserService에서 이미 가입 처리)
+        // 최초 로그인은 CustomOAuth2UserService에서 가입 처리됨
         User user = userRepository.findByProviderAndProviderId(provider, providerId)
                 .orElseThrow(() -> new IllegalStateException("OAuth user not found after signup"));
 
         Long userId = user.getId();
-        String role  = (user.getRole() != null && !user.getRole().isBlank()) ? user.getRole() : "ROLE_USER";
+        String role = (user.getRole() != null && !user.getRole().isBlank()) ? user.getRole() : "ROLE_USER";
 
-        // JWT 생성 —  userId 기반!
+        // JWT 생성 (userId 기반)
         String accessToken  = jwtUtil.generateAccessToken(userId, role);
         String refreshToken = jwtUtil.generateRefreshToken(userId);
 
-        // 쿠키 심기 (SameSite=None; Secure; HttpOnly)
+        // 쿠키(도메인: winnerteam.store / SameSite=None / Secure / HttpOnly)
         ResponseCookie access = ResponseCookie.from("ACCESS_TOKEN", accessToken)
                 .httpOnly(true).secure(true).sameSite("None")
-                .domain("winnerteam.store").path("/").maxAge(Duration.ofDays(7)).build();
+                .domain("winnerteam.store").path("/").maxAge(Duration.ofHours(1)).build();
 
         ResponseCookie refresh = ResponseCookie.from("REFRESH_TOKEN", refreshToken)
                 .httpOnly(true).secure(true).sameSite("None")
-                .domain("winnerteam.store").path("/").maxAge(Duration.ofDays(30)).build();
+                .domain("winnerteam.store").path("/").maxAge(Duration.ofDays(14)).build();
 
         res.addHeader("Set-Cookie", access.toString());
         res.addHeader("Set-Cookie", refresh.toString());
 
-        // 6) 응답
-        res.setStatus(200);
+        // JSON 바디로도 동시 반환 → Postman 테스트 편의성
+        res.setStatus(HttpServletResponse.SC_OK);
         res.setContentType("application/json;charset=UTF-8");
-        res.getWriter().write("{\"success\":true,\"message\":\"LOGIN_OK\"}");
+        res.getWriter().write("""
+        {
+          "success": true,
+          "message": "OAUTH_LOGIN_OK",
+          "data": {
+            "accessToken": "%s",
+            "refreshToken": "%s"
+          }
+        }
+        """.formatted(accessToken, refreshToken));
     }
 
     private String extractProviderId(String provider, Map<String, Object> attrs) {
         Object id;
         switch (provider) {
             case "google":
-                id = attrs.get("sub");               // 구글: sub
+                id = attrs.get("sub");
                 break;
             case "kakao":
-                id = attrs.get("id");                // 카카오: id (Long일 수 있음)
+                id = attrs.get("id");
                 break;
             case "naver":
-                id = attrs.get("id");                // 네이버: response.id
+                id = attrs.get("id");
                 if (id == null && attrs.get("response") instanceof Map<?,?> resp) {
                     id = ((Map<?,?>) resp).get("id");
                 }

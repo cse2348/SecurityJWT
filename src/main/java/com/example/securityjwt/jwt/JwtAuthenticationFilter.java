@@ -16,16 +16,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-/**
- * 매 요청(Request)마다 JWT 토큰을 검사하고,
- * 인증 정보를 SecurityContextHolder에 저장시킴
- *
- * - 2주차 흐름 반영:
- *   1) 쿠키(ACCESS_TOKEN) 우선 → 없으면 Authorization: Bearer
- *   2) Access 토큰만 인증 처리(Refresh는 재발급 전용)
- *   3) DB 조회 없이 무상태 인증 (UserDetailsService 제거)
- *   4) /auth(login|signup|refresh), /oauth2/**, /health, /actuator/health, OPTIONS는 필터 패스
- */
+// 매 요청(Request)마다 JWT 토큰을 검사 -> 인증 정보를 SecurityContextHolder에 저장시킴
+// - JwtUtil을 통해 토큰 검증, 파싱, 사용자 정보 추출
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
@@ -52,28 +44,28 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             // 이미 인증되어 있으면 스킵
             if (SecurityContextHolder.getContext().getAuthentication() == null) {
-                // 1) 토큰 추출 (쿠키 → 헤더 순)
+                // 토큰 추출 (쿠키 → 헤더 순)
                 String token = resolveAccessToken(request);
 
-                // 2) 토큰 유효성 검사
+                // 토큰 유효성 검사
                 if (token != null && jwtUtil.validateToken(token) && jwtUtil.isAccessToken(token)) {
-                    // 3) 토큰에서 userId/role 추출
+                    // 토큰에서 userId/role 추출
                     Long userId = jwtUtil.getUserIdFromToken(token);
                     String role = jwtUtil.getUserRoleFromToken(token);
 
                     if (userId != null) {
-                        // 4) ROLE_ 프리픽스 붙이기
+                        // ROLE_ 프리픽스 붙이기
                         String normalizedRole = (role != null && !role.isBlank())
                                 ? (role.startsWith("ROLE_") ? role : "ROLE_" + role)
                                 : null;
 
-                        // 5) 권한 리스트 생성 (Collections.emptyList()로 타입 안전)
+                        // 권한 리스트 생성 (Collections.emptyList()로 타입 안전)
                         List<GrantedAuthority> authorities =
                                 (normalizedRole != null)
                                         ? List.of(new SimpleGrantedAuthority(normalizedRole))
                                         : Collections.emptyList();
 
-                        // 6) DB 조회 없이 가벼운 Principal 구성 → 무상태 인증
+                        // DB 조회 없이 가벼운 Principal 구성 → 무상태 인증
                         JwtPrincipal principal = new JwtPrincipal(userId);
 
                         // 비밀번호는 null, 권한 정보 포함

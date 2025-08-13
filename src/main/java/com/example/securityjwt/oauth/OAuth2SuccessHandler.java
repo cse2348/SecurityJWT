@@ -1,64 +1,49 @@
 package com.example.securityjwt.oauth;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
+import com.example.securityjwt.jwt.JwtUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.oauth2.core.user.OAuth2User;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
 
-import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.Map;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.time.Duration;
+import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
 public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
-    // JWT가 필요하면 주입해서 생성 후 body에 실어주면 됨
-    // private final JwtUtil jwtUtil;
+    private final JwtUtil jwtUtil;
 
     @Override
-    public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) {
-        try {
-            OAuth2User principal = (OAuth2User) authentication.getPrincipal();
+    public void onAuthenticationSuccess(HttpServletRequest req, HttpServletResponse res, Authentication auth) throws IOException {
+        String username = auth.getName();
+        String roles = auth.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .collect(Collectors.joining(","));
 
-            // 예시: 식별/프로필 정보 뽑기
-            String email = (String) principal.getAttributes().getOrDefault("email", "");
-            if (email.isBlank()) {
-                Object kakaoAccount = principal.getAttribute("kakao_account");
-                if (kakaoAccount instanceof Map<?,?> map && map.get("email") instanceof String e) email = e;
-                Object naverResp = principal.getAttribute("response");
-                if (naverResp instanceof Map<?,?> map && map.get("email") instanceof String e) email = e;
-            }
+        String accessToken  = jwtUtil.createAccessToken(username, roles);
+        String refreshToken = jwtUtil.createRefreshToken(username);
 
-            // 필요 시 JWT 생성
-            // String token = jwtUtil.createToken(email, "ROLE_USER");
+        // ACCESS_TOKEN 쿠키
+        ResponseCookie access = ResponseCookie.from("ACCESS_TOKEN", accessToken)
+                .httpOnly(true).secure(true).sameSite("None")
+                .domain("winnerteam.store").path("/").maxAge(Duration.ofDays(7)).build();
+        // REFRESH_TOKEN 쿠키 (원하면 HttpOnly+Longer)
+        ResponseCookie refresh = ResponseCookie.from("REFRESH_TOKEN", refreshToken)
+                .httpOnly(true).secure(true).sameSite("None")
+                .domain("winnerteam.store").path("/").maxAge(Duration.ofDays(30)).build();
 
-            Map<String, Object> body = new HashMap<>();
-            body.put("status", "success");
-            body.put("providerAttributes", principal.getAttributes());
-            body.put("email", email);
-            // body.put("token", token);
+        res.addHeader("Set-Cookie", access.toString());
+        res.addHeader("Set-Cookie", refresh.toString());
 
-            response.setStatus(HttpServletResponse.SC_OK);
-            response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-            response.setContentType("application/json");
-            objectMapper.writeValue(response.getWriter(), body);
-        } catch (Exception e) {
-            // 실패 형식과 통일을 원하면 401/400 등으로 내려도 됨
-            try {
-                response.setStatus(HttpServletResponse.SC_OK);
-                response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-                response.setContentType("application/json");
-                objectMapper.writeValue(response.getWriter(), Map.of(
-                        "status", "error",
-                        "message", "OAuth2 success handling failed"
-                ));
-            } catch (Exception ignored) {}
-        }
+        res.setStatus(200);
+        res.setContentType("application/json;charset=UTF-8");
+        res.getWriter().write("{\"success\":true,\"message\":\"LOGIN_OK\"}");
     }
 }

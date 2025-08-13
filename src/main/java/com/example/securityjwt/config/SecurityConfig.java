@@ -15,6 +15,7 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.client.web.HttpSessionOAuth2AuthorizationRequestRepository;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -23,86 +24,69 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
 
-@Configuration
-@EnableWebSecurity
-@RequiredArgsConstructor
+@Configuration @EnableWebSecurity @RequiredArgsConstructor
 public class SecurityConfig {
 
-    // JWT 유틸리티
     private final JwtUtil jwtUtil;
-
-    // OAuth2 로그인 관련 서비스/핸들러
     private final CustomOAuth2UserService customOAuth2UserService;
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
     private final OAuth2FailureHandler oAuth2FailureHandler;
 
-    // JWT 인증 필터 (요청 시 토큰 검증)
+    // OAuth 인가요청 저장소: 세션 기반(표준)
     @Bean
-    public JwtAuthenticationFilter jwtAuthenticationFilter() {
-        return new JwtAuthenticationFilter(jwtUtil);
+    public HttpSessionOAuth2AuthorizationRequestRepository authorizationRequestRepository() {
+        return new HttpSessionOAuth2AuthorizationRequestRepository();
     }
 
-    // 비밀번호 암호화를 위한 BCrypt
     @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
+    public JwtAuthenticationFilter jwtAuthenticationFilter() { return new JwtAuthenticationFilter(jwtUtil); }
 
-    // CORS 설정 (프론트 도메인 허용)
+    @Bean
+    public PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
+
+    // 정확한 오리진 허용 + 쿠키 전송 허용
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of("https://winnerteam.store"));
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With", "Cache-Control"));
-        config.setAllowCredentials(true); // 쿠키 허용
-
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", config);
-        return source;
+        CorsConfiguration c = new CorsConfiguration();
+        c.setAllowedOrigins(List.of("https://winnerteam.store"));
+        c.setAllowedMethods(List.of("GET","POST","PUT","DELETE","OPTIONS"));
+        c.setAllowedHeaders(List.of("Authorization","Content-Type","Accept","Origin","X-Requested-With","Cache-Control"));
+        c.setAllowCredentials(true);
+        UrlBasedCorsConfigurationSource s = new UrlBasedCorsConfigurationSource();
+        s.registerCorsConfiguration("/**", c);
+        return s;
     }
 
-    // SecurityFilterChain 설정
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                // CSRF/폼로그인/HTTP Basic 인증 비활성화
                 .csrf(csrf -> csrf.disable())
-                .httpBasic(hb -> hb.disable())
-                .formLogin(fl -> fl.disable())
+                .httpBasic(b -> b.disable())
+                .formLogin(f -> f.disable())
+                .cors(c -> c.configurationSource(corsConfigurationSource()))
 
-                // CORS 적용
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-
-                // OAuth 핸드셰이크 동안만 세션 허용 (authorization_request_not_found 방지)
+                // OAuth 핸드셰이크 동안만 세션 허용(인가요청 저장/조회)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
 
-                // URL 접근 권한 설정
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() // Preflight 허용
-                        .requestMatchers("/health", "/actuator/health").permitAll() // 헬스 체크
-                        .requestMatchers("/auth/login", "/auth/signup", "/auth/refresh").permitAll() // 공개 인증 API
-                        // 요구사항: /oauth2/authorize/{provider} 시작/ /oauth2/callback/{provider} 콜백 허용
-                        .requestMatchers("/oauth2/**").permitAll()
-                        .anyRequest().authenticated() // 나머지는 인증 필요
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers("/health", "/actuator/health").permitAll()
+                        .requestMatchers("/auth/login", "/auth/signup", "/auth/refresh").permitAll()
+                        .requestMatchers("/oauth2/**").permitAll() // /oauth2/authorize/* , /oauth2/callback/*
+                        .anyRequest().authenticated()
                 )
 
-                // OAuth2 로그인 설정
-                .oauth2Login(oauth -> oauth
-                        // 요구사항: 로그인 시작 URL = /oauth2/authorize/{provider}
-                        // (Spring 기본은 /oauth2/authorization/{provider} 이므로, 명시적으로 바꿔줌)
-                        .authorizationEndpoint(ae -> ae.baseUri("/oauth2/authorize"))
-                        // 콜백 URL = /oauth2/callback/{provider}
+                .oauth2Login(o -> o
+                        .authorizationEndpoint(ae -> ae
+                                .baseUri("/oauth2/authorize") // 요구사항 경로
+                                .authorizationRequestRepository(authorizationRequestRepository())
+                        )
                         .redirectionEndpoint(re -> re.baseUri("/oauth2/callback/*"))
-                        // 사용자 정보 처리
                         .userInfoEndpoint(ue -> ue.userService(customOAuth2UserService))
-                        // 성공/실패 핸들러 (여기서 JWT 쿠키 발급/JSON 응답)
-                        .successHandler(oAuth2SuccessHandler)
+                        .successHandler(oAuth2SuccessHandler)   // JWT 발급/쿠키 세팅
                         .failureHandler(oAuth2FailureHandler)
                 )
 
-                // 예외 처리 (401/403 JSON 응답)
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((req, res, e) -> {
                             res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
@@ -116,7 +100,6 @@ public class SecurityConfig {
                         })
                 )
 
-                // JWT 필터를 UsernamePasswordAuthenticationFilter 앞에 추가
                 .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

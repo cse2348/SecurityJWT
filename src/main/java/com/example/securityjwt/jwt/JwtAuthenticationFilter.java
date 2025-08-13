@@ -16,23 +16,24 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-// 매 요청(Request)마다 JWT 토큰을 검사 -> 인증 정보를 SecurityContextHolder에 저장시킴
-// - JwtUtil을 통해 토큰 검증, 파싱, 사용자 정보 추출
+/**
+ * 매 요청마다 JWT 토큰을 검사해 인증 정보를 SecurityContextHolder에 저장.
+ * - JwtUtil로 토큰 검증/파싱
+ * - OAuth2 시작/콜백, 회원가입/로그인/리프레시, 헬스체크, OPTIONS는 패스
+ */
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    private final JwtUtil jwtUtil;  // 토큰을 생성, 검증, 파싱하는 유틸 클래스
+    private final JwtUtil jwtUtil; // 토큰 생성/검증/파싱 유틸
 
-    // 로그인/회원가입/리프레시 + OAuth2 콜백/시작 + 헬스체크 + OPTIONS는 필터 패스
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
         String uri = request.getRequestURI();
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) return true;
-
         return uri.equals("/auth/login")
                 || uri.equals("/auth/signup")
                 || uri.equals("/auth/refresh")
-                || uri.startsWith("/oauth2/")          // 소셜 로그인 시작/콜백
+                || uri.startsWith("/oauth2/")   // 소셜 로그인 시작/콜백
                 || uri.equals("/health")
                 || uri.equals("/actuator/health");
     }
@@ -44,54 +45,46 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             // 이미 인증되어 있으면 스킵
             if (SecurityContextHolder.getContext().getAuthentication() == null) {
-                // 토큰 추출 (쿠키 → 헤더 순)
+                // 토큰 추출 (쿠키 우선 → Authorization 헤더)
                 String token = resolveAccessToken(request);
 
-                // 토큰 유효성 검사
+                // 토큰 유효성 & 타입 검증
                 if (token != null && jwtUtil.validateToken(token) && jwtUtil.isAccessToken(token)) {
-                    // 토큰에서 userId/role 추출
                     Long userId = jwtUtil.getUserIdFromToken(token);
                     String role = jwtUtil.getUserRoleFromToken(token);
 
                     if (userId != null) {
-                        // ROLE_ 프리픽스 붙이기
                         String normalizedRole = (role != null && !role.isBlank())
                                 ? (role.startsWith("ROLE_") ? role : "ROLE_" + role)
                                 : null;
 
-                        // 권한 리스트 생성 (Collections.emptyList()로 타입 안전)
                         List<GrantedAuthority> authorities =
                                 (normalizedRole != null)
                                         ? List.of(new SimpleGrantedAuthority(normalizedRole))
                                         : Collections.emptyList();
 
-                        // DB 조회 없이 가벼운 Principal 구성 → 무상태 인증
+                        // 가벼운 Principal (DB 조회 없이)
                         JwtPrincipal principal = new JwtPrincipal(userId);
 
-                        // 비밀번호는 null, 권한 정보 포함
                         var authentication = new UsernamePasswordAuthenticationToken(principal, null, authorities);
-
-                        // SecurityContextHolder에 인증 객체 저장 → 로그인한 상태로 인식
                         SecurityContextHolder.getContext().setAuthentication(authentication);
                     }
                 }
             }
-        } catch (Exception e) {
-            // 여기서 예외를 던지면 500이 날 수 있으니 로깅만 하고 필터 체인은 계속 진행
-            // log.warn("[JWT] authentication filter error: {}", e.getMessage());
+        } catch (Exception ignored) {
+            // 여기서 예외를 던지면 500 가능 → 로깅만 하고 진행
         }
 
-        // 다음 필터로 요청 넘기기
         filterChain.doFilter(request, response);
     }
 
     /**
-     * Access 토큰을 요청에서 추출
-     * - 1순위: HttpOnly 쿠키 ACCESS_TOKEN (OAuth2 성공 핸들러가 심어줌)
-     * - 2순위: Authorization: Bearer {token}
+     * Access 토큰 추출
+     * 1) HttpOnly 쿠키 ACCESS_TOKEN
+     * 2) Authorization: Bearer ...
      */
     private String resolveAccessToken(HttpServletRequest request) {
-        // 쿠키 우선
+        // 쿠키
         if (request.getCookies() != null) {
             for (Cookie c : request.getCookies()) {
                 if ("ACCESS_TOKEN".equals(c.getName())) {
@@ -100,7 +93,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 }
             }
         }
-        // 헤더(모바일/테스트 클라이언트 등)
+        // 헤더
         String header = request.getHeader("Authorization");
         if (header != null && header.startsWith("Bearer ")) {
             return header.substring(7).trim();
@@ -108,10 +101,5 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return null;
     }
 
-    /**
-     * SecurityContext에 저장될 가벼운 Principal
-     * - 굳이 UserDetails/엔티티를 넣지 않고 userId만 보관
-     * - 컨트롤러에서 필요하면 Authentication.getPrincipal() 캐스팅해서 id 사용
-     */
     public record JwtPrincipal(Long userId) {}
 }

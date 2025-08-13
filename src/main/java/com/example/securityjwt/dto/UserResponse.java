@@ -5,7 +5,6 @@ import lombok.*;
 
 // 컨트롤러 응답/리스트 조회(프로젝션) 등에 사용하는 DTO
 // 소셜 로그인 사용자는 username이 null일 수 있으므로 name/email도 포함
-// Repository 프로젝션 new UserResponse(u.id, u.username) 과 호환되도록 2-인자 생성자 유지
 @Getter
 @Setter
 @NoArgsConstructor

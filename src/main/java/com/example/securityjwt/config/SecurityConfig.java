@@ -74,7 +74,8 @@ public class SecurityConfig {
 
                 // CORS 적용
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                // 세션 관리 설정
+
+                // OAuth 핸드셰이크 동안만 세션 허용 (authorization_request_not_found 방지)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
 
                 // URL 접근 권한 설정
@@ -82,19 +83,21 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() // Preflight 허용
                         .requestMatchers("/health", "/actuator/health").permitAll() // 헬스 체크
                         .requestMatchers("/auth/login", "/auth/signup", "/auth/refresh").permitAll() // 공개 인증 API
-                        .requestMatchers("/oauth2/**").permitAll() // OAuth2 로그인 시작/콜백
+                        // 요구사항: /oauth2/authorize/{provider} 시작/ /oauth2/callback/{provider} 콜백 허용
+                        .requestMatchers("/oauth2/**").permitAll()
                         .anyRequest().authenticated() // 나머지는 인증 필요
                 )
 
                 // OAuth2 로그인 설정
                 .oauth2Login(oauth -> oauth
-                        // 인가 요청 엔드포인트 (properties의 절대 redirect-uri 사용)
+                        // 요구사항: 로그인 시작 URL = /oauth2/authorize/{provider}
+                        // (Spring 기본은 /oauth2/authorization/{provider} 이므로, 명시적으로 바꿔줌)
                         .authorizationEndpoint(ae -> ae.baseUri("/oauth2/authorize"))
-                        // 콜백 엔드포인트 (서비스별로 /oauth2/callback/{registrationId})
+                        // 콜백 URL = /oauth2/callback/{provider}
                         .redirectionEndpoint(re -> re.baseUri("/oauth2/callback/*"))
                         // 사용자 정보 처리
                         .userInfoEndpoint(ue -> ue.userService(customOAuth2UserService))
-                        // 성공/실패 핸들러
+                        // 성공/실패 핸들러 (여기서 JWT 쿠키 발급/JSON 응답)
                         .successHandler(oAuth2SuccessHandler)
                         .failureHandler(oAuth2FailureHandler)
                 )

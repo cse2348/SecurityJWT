@@ -51,11 +51,30 @@ https://winnerteam.store
 ## 기타(참고url,기술오류 등등)
 postman : https://www.postman.com/backend-team-b/spring-security-jwt/collection/l1adr0w/jwt?action=share&source=copy-link&creator=46095284
 
-오류 발생 : 카카오 소셜 로그인 과정
-1. 카카오 로그인 시작 → UNAUTHORIZED
-원인: /oauth2/authorize/kakao와 같이 인증이 없는 상태에서 시작해야 하는 경로가 Spring Security의 JwtAuthenticationFilter에 의해 선제적으로 차단되고 있었음 (필터가 토큰이 없는 모든 요청을 '인증 실패'로 간주했기 때문)
-해결: JwtAuthenticationFilter의 로직을 수정하여, Bearer 토큰이 없는 요청은 인증 처리 없이 다음 필터로 안전하게 통과시키도록 변경 -> 이로써 SecurityConfig의 .permitAll() 설정이 정상적으로 동작
+1. 오류 발생 : 카카오 소셜 로그인 과정
 
-2. 카카오 로그인 처리 중 → Duplicate entry (DB 오류)
-원인: 카카오 로그인은 성공적으로 처리되었으나, 서버가 카카오로부터 받은 이메일가 DB에 이미 존재하는 것을 확인 ->  CustomOAuth2UserService의 로직이 이 경우에 기존 계정과 연동하지 않고, 새로운 계정을 생성(INSERT)하려고 시도하여 DB의 이메일 중복 방지 규칙(Unique Constraint)에 위배되어 오류 발생
-해결: CustomOAuth2UserService의 로직을 수정 -> 소셜 로그인 시 전달받은 이메일이 DB에 이미 존재하면 새로 가입시키지 않고, 해당 계정에 소셜 로그인 정보(provider, providerId)를 업데이트하여 기존 계정과 연동하도록 변경하여 해결
+   1) 카카오 로그인 시작 → UNAUTHORIZED
+   - 원인: /oauth2/authorize/kakao와 같이 인증이 없는 상태에서 시작해야 하는 경로가 
+     Spring Security의 JwtAuthenticationFilter에 의해 선제적으로 차단되고 있었음 
+     -> 필터가 토큰이 없는 모든 요청을 '인증 실패'로 간주했기 때문
+   - 해결: JwtAuthenticationFilter의 로직을 수정하여, Bearer 토큰이 없는 요청은 
+     인증 처리 없이 다음 필터로 안전하게 통과시키도록 변경 -> 이로써 SecurityConfig의 .permitAll() 설정이 정상적으로 동작
+
+   2) 카카오 로그인 처리 중 → Duplicate entry (DB 오류)
+   - 원인: 카카오 로그인은 성공적으로 처리되었으나, 서버가 카카오로부터 받은 이메일가 DB에 이미 존재하는 것을 확인
+      CustomOAuth2UserService의 로직이 이 경우에 기존 계정과 연동하지 않고, 
+      새로운 계정을 생성(INSERT)하려고 시도하여 DB의 이메일 중복 방지 규칙(Unique Constraint)에 위배되어 오류 발생
+   - 해결: CustomOAuth2UserService의 로직을 수정 -> 소셜 로그인 시 전달받은 이메일이 DB에 이미 존재하면 새로 가입시키지 않고, 
+     해당 계정에 소셜 로그인 정보(provider, providerId)를 업데이트하여 기존 계정과 연동하도록 변경하여 해결
+
+2. ALB 대상 그룹 중복 구성으로 인한 간헐적 502 오류
+
+   - 증상: 배포 후 API 요청 시 200과 502 응답이 번갈아 발생.
+   - 원인: ALB 리스너에 두 개의 대상 그룹(Target Group)이 연결되어 있었으며, 그중 하나가 잘못된 포트 또는 설정으로   
+     ALB가 라운드로빈 방식으로 트래픽을 분산하면서 절반의 요청이 비정상 그룹으로 전달되어 502 발생.
+     하나는 정상적으로 8080 포트(컨테이너 내부 HTTP 포트)로 연결, 다른 하나는 443 포트 대상 그룹으로 연결되어 있었음.  
+     하지만 EC2 애플리케이션 컨테이너는 직접 HTTPS를 처리하지 않고 HTTP(8080)만 처리하도록 설정되어 있었기 때문에,  
+     443 대상 그룹으로 전달된 요청은 실제 애플리케이션과 통신할 수 없어 즉시 502(Bad Gateway) 발생.  
+     ALB가 라운드로빈 방식으로 두 그룹에 트래픽을 분산하면서 API 요청이 절반은 정상(200), 절반은 실패(502)로 응답됨.
+   - 해결: 잘못된 대상 그룹(443)을 리스너에서 제거하고, 정상 대상 그룹(8080)만 연결.  
+
